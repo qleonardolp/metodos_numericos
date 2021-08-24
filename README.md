@@ -1,2 +1,2 @@
-# metodos_numericos
-Scripts em Python para estudar a disciplina Métodos Numéricos (SEM5738)
+# Métodos Numéricos
+Scripts em Python para estudar a disciplina Métodos Numéricos (SEM5738).
