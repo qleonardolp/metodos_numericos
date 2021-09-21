@@ -31,7 +31,7 @@ approx[4] = ( sp.jv(0,x+dx) - sp.jv(0,x-dx) ) / (2*dx)
 # e) Central com 4 pts
 approx[5] = ( -sp.jv(0,x+2*dx) + 8*sp.jv(0,x+dx) - 8*sp.jv(0,x-dx) + sp.jv(0,x-2*dx) ) / (12*dx)
 
-erros = abs(solucao_exata*np.ones(6) - approx)
+erros = solucao_exata*np.ones(6) - approx
 
 print(solucao_exata)
 print(erros)
