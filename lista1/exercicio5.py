@@ -1,7 +1,6 @@
 # Exercicio para calcular aproximacoes (FDM) de df/dx e d2f/dx2 para f(x) = e^(x)*sin(x)
 
 import numpy as np
-from scipy import special as sp
 import matplotlib.pyplot as plt
 
 ## f(x) definida como uma função python para simplificar sintaxe
