@@ -6,10 +6,10 @@ from matplotlib import cm
 from matplotlib.ticker import LinearLocator
 from numpy.core.fromnumeric import mean, shape, size
 
-lmb = 0.01
-cond = 1.00
-dt = 0.01
-dx = 0.02
+lmb = 0.01      # Difusividade Termica
+cond = 1.00     # Condutividade Termica
+dt = 0.01       # Time step
+dx = 0.02       # Length step
 
 A1 = lmb*dt/(dx**2)
 A2 = 1 - 2*lmb*dt/(dx**2)
@@ -52,7 +52,8 @@ for k in range(size(tempo)-1):
     #endfor
 #endfor
 
-# Sanity Check: Tp media em tf deve ser maior que Tp de t0:
+# Sanity Check: Tp media em tf deve ser maior que Tp de t0,
+# visto que calor entra na barra e apos 10s ela esta completamente adiabatica
 print(mean(Tp[:,-1]))
 
 fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
