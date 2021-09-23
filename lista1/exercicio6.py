@@ -9,8 +9,8 @@ from numpy.core.shape_base import block
 
 lmb = 0.01      # Difusividade Termica
 cond = 1.00     # Condutividade Termica
-dt = 0.02       # Time step
-dx = 0.03       # Length step
+dt = 0.003       # Time step
+dx = 0.10       # Length step
 
 A1 = lmb*dt/(dx**2)
 A2 = 1 - 2*lmb*dt/(dx**2)
@@ -46,7 +46,8 @@ for k in range(size(tempo)-1):
         if i == 0:
             Tp[i,k] = 2*dx/cond*q_xi[k] + Tp[i+2,k]     # CC em x=0
         if i == (size(pos_x)-1):
-            Tp[i+1,k] = 2*dx/cond*q_xf[k] + Tp[i-1,k]   # CC em x=L
+            #Tp[i+1,k] = 2*dx/cond*q_xf[k] + Tp[i-1,k]   # CC em x=L (usando q_xf qql)
+            Tp[i+1,k+1] = A2*Tp[i+1,k] + 2*A1*Tp[i,k]    # CC em x=L
         else:
             Tp[i,k+1] = A1*Tp[i+1,k] + A2*Tp[i,k] + A3*Tp[i-1,k]
         #endif
@@ -73,14 +74,14 @@ A = A + np.diag(d1, ofst)
 A = A + np.diag(d3,-ofst)
 # CC:
 A[0,:] =  0
-A[0,0] = -1
-A[0,2] =  1
+A[0,0] =  1
+A[0,2] = -1
 
 A[-1, :] =  0
-A[-1,-1] =  1
-A[-1,-3] = -1
+A[-1,-1] = A2
+A[-1,-2] = -(A1 + A3)
 
-#print(A)
+print(np.linalg.det(A))
 
 # A solucao do sistema linear inverte A. Como A é constante ao longo do tempo,
 # invertemos fora do loop apenas uma vez para simplificacao computacional:
@@ -88,11 +89,9 @@ Ainv = np.linalg.inv(A)
 
 for k in range(size(tempo)-1):
     b = Tp[:,k].copy()
-    #b[0]  = -2*dx/cond*q_xi[k+1]
-    #b[-1] = -2*dx/cond*q_xf[k+1]
+    b[0]  = 2*dx/cond*q_xi[k+1]
+    #b[-1] = 2*dx/cond*q_xf[k+1]
     Tp[:,k+1] = np.dot(Ainv,b)
-    Tp[0,k+1] = Tp[2,k+1] + 2*dx/cond*q_xi[k+1]
-    Tp[-1,k+1] = Tp[-3,k+1] - 2*dx/cond*q_xi[k+1]
 #endfor
 print(mean(Tp[:,-1]))
 SolImp_Tp = Tp.copy()
