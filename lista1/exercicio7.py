@@ -9,16 +9,16 @@ from numpy.core.fromnumeric import mean, shape, size
 
 lmb = 0.01      # Difusividade Termica
 cond = 1.00     # Condutividade Termica
-dt = 0.05       # Time step
-dx = 0.04       # Length step x
-dy = 0.04       # Length step y
+dt = 0.04       # Time step
+dx = 0.08       # Length step x
+dy = dx         # Length step y
 
-A1 = lmb*dt/(dx**2)
-A2 = 1 - 2*lmb*dt/(dx**2)
-A3 = lmb*dt/(dx**2)
+A1 = 1 - 2*lmb*dt/(dx**2) - 2*lmb*dt/(dy**2)
+A2 = lmb*dt/(dx**2)
+A3 = lmb*dt/(dy**2)
 
 # Critério de estabilidade: 'A1' <= 0.5
-print(A1)
+print(A2)
 
 ti = 0
 tf = 100
@@ -34,32 +34,51 @@ Nx = size(pos_x)
 Ny = size(pos_y)
 Nt = size(tempo)
 
-Tp = np.ones([Nx*Ny, Nt]) # Temperatura
+Tp = np.zeros([Nx*Ny, Nt]) # Temperatura
 ## C.I. T0_(x,y) = 10*exp^(-20(x^2 + y^2))
-for i in range(Ny):
-    for j in range(Nx):
-        Tp[j+i*Nx,0] = 10*np.exp(-20*((pos_x[j])**2 + (pos_y[i])**2))
+for j in range(Ny):
+    for i in range(Nx):
+        Tp[i+j*Nx,0] = 10*np.exp(-20*((pos_x[i])**2 + (pos_y[j])**2))
     #endfor    
 #endfor
-#print(Tp[:,0])
-
-
 
 ## C.C. (Neumann)
-q_xi = np.zeros([Nx, Nt])
-q_xf = np.zeros([Nx, Nt])
-q_yi = np.zeros([Ny, Nt])
-q_yf = np.zeros([Ny, Nt])
+q_xi = np.zeros([Ny, Nt])
+q_xf = np.zeros([Ny, Nt])
+q_yi = np.zeros([Nx, Nt])
+q_yf = np.zeros([Nx, Nt])
 
-SolExp_Tp = np.reshape(Tp[:,0], (Ny, Nx))
-print(shape(SolExp_Tp))
+## Abordagem Explicita:
+for k in range(Nt-1):
+    for j in range(Ny):
+        for i in range(Nx):
+            if i == 0:
+                Tp[0+j*Nx,k] = 2*dx/cond*q_xi[j,k] + Tp[2+j*Nx,k]
+            if i == (Nx-1):
+                Tp[Nx-1+j*Nx,k] = 2*dx/cond*q_xf[j,k] + Tp[Nx-3+j*Nx,k]
+            if j == 0:
+                Tp[i+0*Nx,k] = 2*dy/cond*q_yi[i,k] + Tp[i+2*Nx,k]
+            if j == (Ny-1):
+                Tp[i+(Ny-1)*Nx,k] = 2*dy/cond*q_yf[i,k] + Tp[i+(Ny-3)*Nx,k]
+            else:
+                Tp[i+j*Nx,k+1] = A1*Tp[i+j*Nx,k] + A2*(Tp[i+1 +j*Nx,k] + Tp[i-1 +j*Nx,k]) + A3*(Tp[i+(j+1)*Nx,k] + Tp[i+(j-1)*Nx,k])
+        #endfor
+    #endfor
+#endfor
+
+Nt = Nt-1
+SolExp_Tp0   = np.reshape(Tp[:,0], (Nx, Ny))
+SolExp_Tp100 = np.reshape(Tp[:,Nt], (Nx, Ny))
+SolExp_Tp25  = np.reshape(Tp[:,math.floor(Nt/4)], (Nx, Ny))
+SolExp_Tp50  = np.reshape(Tp[:,math.floor(Nt/2)], (Nx, Ny))
+SolExp_Tp75  = np.reshape(Tp[:,math.floor(3*Nt/4)], (Nx, Ny))
+
 
 fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
 pos_x, pos_y = np.meshgrid(pos_x, pos_y)
-print(shape(pos_x), shape(pos_y))
 
 # Plot the surface.
-surf = ax.plot_surface(pos_y, pos_x, SolExp_Tp, cmap=cm.coolwarm,
+surf = ax.plot_surface(pos_x, pos_y, SolExp_Tp0, cmap=cm.coolwarm,
                        linewidth=0, antialiased=False)
 
 # Customize the z axis.
