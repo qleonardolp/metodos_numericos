@@ -49,7 +49,7 @@ for k in range(size(tempo)-1):
             Tp[i,k] = 2*dx/cond*q_xi[k] + Tp[i+2,k]     # CC em x=0
         if i == (size(pos_x)-1):
             #Tp[i+1,k] = 2*dx/cond*q_xf[k] + Tp[i-1,k]   # CC em x=L (usando q_xf qql)
-            Tp[i+1,k+1] = A2*Tp[i+1,k] + 2*A1*Tp[i,k]    # CC em x=L
+            Tp[i+1,k] = A2*Tp[i+1,k] + 2*A1*Tp[i,k]    # CC em x=L
         else:
             Tp[i,k+1] = A1*Tp[i+1,k] + A2*Tp[i,k] + A3*Tp[i-1,k]
         #endif
