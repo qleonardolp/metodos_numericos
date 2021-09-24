@@ -51,18 +51,16 @@ q_yf = np.zeros([Nx, Nt])
 ## Abordagem Explicita:
 for k in range(Nt-1):
     for j in range(Ny):
-        for i in range(Nx):
-            if i == 0:
-                Tp[i+j*Nx,k] = 2*dx/cond*q_xi[j,k] + Tp[i+2+j*Nx,k]   #OK
-            if i == (Nx-1):
-                Tp[i+j*Nx,k] = 2*dx/cond*q_xf[j,k] + Tp[i-2+j*Nx,k]   #OK
+        Tp[0+j*Nx,k] = 2*dx/cond*q_xi[j,k] + Tp[0+2+j*Nx,k]   #OK
+        for i in range(1,Nx-1):
             if j == 0:
                 Tp[i+j*Nx,k] = 2*dy/cond*q_yi[i,k] + Tp[i+(j+2)*Nx,k] #OK
-            if j == (Ny-1):
+            elif j == (Ny-1):
                 Tp[i+j*Nx,k] = 2*dy/cond*q_yf[i,k] + Tp[i+(j-2)*Nx,k] #NOK
             else:
                 Tp[i+j*Nx,k+1] = A1*Tp[i+j*Nx,k] + A2*(Tp[i+1 +j*Nx,k] + Tp[i-1 +j*Nx,k]) + A3*(Tp[i+(j+1)*Nx,k] + Tp[i+(j-1)*Nx,k])
         #endfor
+        Tp[(Nx-1)+j*Nx,k] = 2*dx/cond*q_xf[j,k] + Tp[(Nx-1)-2+j*Nx,k]   #OK
     #endfor
 #endfor
 

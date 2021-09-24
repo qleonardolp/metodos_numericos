@@ -11,6 +11,8 @@ lmb = 0.01      # Difusividade Termica
 cond = 1.00     # Condutividade Termica
 dt = 0.003       # Time step
 dx = 0.10       # Length step
+dt = 0.01       # Time step
+dx = 0.02       # Length step
 
 A1 = lmb*dt/(dx**2)
 A2 = 1 - 2*lmb*dt/(dx**2)
@@ -83,7 +85,8 @@ A[-1,-2] = -(A1 + A3)
 
 print(np.linalg.det(A))
 
-# A solucao do sistema linear inverte A. Como A é constante ao longo do tempo,
+# Atalho para comentario de multiplas linhas: Shift + Alt + A
+""" # A solucao do sistema linear inverte A. Como A é constante ao longo do tempo,
 # invertemos fora do loop apenas uma vez para simplificacao computacional:
 Ainv = np.linalg.inv(A)
 
@@ -93,7 +96,7 @@ for k in range(size(tempo)-1):
     #b[-1] = 2*dx/cond*q_xf[k+1]
     Tp[:,k+1] = np.dot(Ainv,b)
 #endfor
-print(mean(Tp[:,-1]))
+print(mean(Tp[:,-1])) """
 SolImp_Tp = Tp.copy()
 
 
