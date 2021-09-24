@@ -53,13 +53,13 @@ for k in range(Nt-1):
     for j in range(Ny):
         for i in range(Nx):
             if i == 0:
-                Tp[0+j*Nx,k] = 2*dx/cond*q_xi[j,k] + Tp[2+j*Nx,k]
+                Tp[i+j*Nx,k] = 2*dx/cond*q_xi[j,k] + Tp[i+2+j*Nx,k]   #OK
             if i == (Nx-1):
-                Tp[Nx-1+j*Nx,k] = 2*dx/cond*q_xf[j,k] + Tp[Nx-3+j*Nx,k]
+                Tp[i+j*Nx,k] = 2*dx/cond*q_xf[j,k] + Tp[i-2+j*Nx,k]   #OK
             if j == 0:
-                Tp[i+0*Nx,k] = 2*dy/cond*q_yi[i,k] + Tp[i+2*Nx,k]
+                Tp[i+j*Nx,k] = 2*dy/cond*q_yi[i,k] + Tp[i+(j+2)*Nx,k] #OK
             if j == (Ny-1):
-                Tp[i+(Ny-1)*Nx,k] = 2*dy/cond*q_yf[i,k] + Tp[i+(Ny-3)*Nx,k]
+                Tp[i+j*Nx,k] = 2*dy/cond*q_yf[i,k] + Tp[i+(j-2)*Nx,k] #NOK
             else:
                 Tp[i+j*Nx,k+1] = A1*Tp[i+j*Nx,k] + A2*(Tp[i+1 +j*Nx,k] + Tp[i-1 +j*Nx,k]) + A3*(Tp[i+(j+1)*Nx,k] + Tp[i+(j-1)*Nx,k])
         #endfor
@@ -67,7 +67,7 @@ for k in range(Nt-1):
 #endfor
 
 Nt = Nt-1
-SolExp_Tp0   = np.reshape(Tp[:,0], (Nx, Ny))
+SolExp_Tp0   = np.reshape(Tp[:,40], (Nx, Ny))
 SolExp_Tp100 = np.reshape(Tp[:,Nt], (Nx, Ny))
 SolExp_Tp25  = np.reshape(Tp[:,math.floor(Nt/4)], (Nx, Ny))
 SolExp_Tp50  = np.reshape(Tp[:,math.floor(Nt/2)], (Nx, Ny))
@@ -78,7 +78,7 @@ fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
 pos_x, pos_y = np.meshgrid(pos_x, pos_y)
 
 # Plot the surface.
-surf = ax.plot_surface(pos_x, pos_y, SolExp_Tp0, cmap=cm.coolwarm,
+surf = ax.plot_surface(pos_x, pos_y, SolExp_Tp100, cmap=cm.coolwarm,
                        linewidth=0, antialiased=False)
 
 # Customize the z axis.
