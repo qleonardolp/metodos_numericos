@@ -9,8 +9,8 @@ from numpy.core.fromnumeric import mean, shape, size
 
 lmb = 0.01      # Difusividade Termica
 cond = 1.00     # Condutividade Termica
-dt = 0.04       # Time step
-dx = 0.08       # Length step x
+dt = 0.1       # Time step
+dx = 0.1       # Length step x
 dy = dx         # Length step y
 
 A1 = 1 - 2*lmb*dt/(dx**2) - 2*lmb*dt/(dy**2)
@@ -33,6 +33,7 @@ pos_y = np.arange(yi, yf+dy, dy)
 Nx = size(pos_x)
 Ny = size(pos_y)
 Nt = size(tempo)
+print(Nx)
 
 Tp = np.zeros([Nx*Ny, Nt]) # Temperatura
 ## C.I. T0_(x,y) = 10*exp^(-20(x^2 + y^2))
@@ -50,22 +51,26 @@ q_yf = np.zeros([Nx, Nt])
 
 ## Abordagem Explicita:
 for k in range(Nt-1):
-    for j in range(Ny):
-        Tp[0+j*Nx,k] = 2*dx/cond*q_xi[j,k] + Tp[0+2+j*Nx,k]   #OK
+    for i in range(Nx):
+        if   i == 0:
+            Tp[i+0*Nx,k] = Tp[(i+2)+2*Nx,k]           # (i,j == 0,0)
+            Tp[i+(Ny-1)*Nx,k] = Tp[(i+2)+(Ny-3)*Nx,k] # (i,j == 0,Ny-1)
+        elif i == (Nx-1):
+            Tp[i+0*Nx,k] = Tp[(i-2)+2*Nx,k]           # (i,j == Nx-1,0)
+            Tp[i+(Ny-1)*Nx,k] = Tp[(i-2)+(Ny-3)*Nx,k] # (i,j == Nx-1,Ny-1)
+        else:        
+            Tp[i+0*Nx,k] = Tp[i+2*Nx,k]           # (j == 0)
+            Tp[i+(Ny-1)*Nx,k] = Tp[i+(Ny-3)*Nx,k] # (j == Ny-1)
+        # CC antes do "for" principal pois a evolucao no tempo precisa carregar a info das CCs
+    for j in range(1,Ny-1):
+        Tp[0+j*Nx,k] = Tp[0+2+j*Nx,k]           # (i == 0)
+        Tp[Nx-1+j*Nx,k] = Tp[(Nx-1)-2+j*Nx,k]   # (i == Nx-1)
+        # CC antes do "for" principal pois a evolucao no tempo precisa carregar a info das CCs
         for i in range(1,Nx-1):
-            if j == 0:
-                Tp[i+j*Nx,k] = 2*dy/cond*q_yi[i,k] + Tp[i+(j+2)*Nx,k] #OK
-            elif j == (Ny-1):
-                Tp[i+j*Nx,k] = 2*dy/cond*q_yf[i,k] + Tp[i+(j-2)*Nx,k] #NOK
-            else:
-                Tp[i+j*Nx,k+1] = A1*Tp[i+j*Nx,k] + A2*(Tp[i+1 +j*Nx,k] + Tp[i-1 +j*Nx,k]) + A3*(Tp[i+(j+1)*Nx,k] + Tp[i+(j-1)*Nx,k])
-        #endfor
-        Tp[(Nx-1)+j*Nx,k] = 2*dx/cond*q_xf[j,k] + Tp[(Nx-1)-2+j*Nx,k]   #OK
-    #endfor
-#endfor
+            Tp[i+j*Nx,k+1] = A1*Tp[i+j*Nx,k] + A2*(Tp[i+1 +j*Nx,k] + Tp[i-1 +j*Nx,k]) + A3*(Tp[i+(j+1)*Nx,k] + Tp[i+(j-1)*Nx,k])
 
 Nt = Nt-1
-SolExp_Tp0   = np.reshape(Tp[:,40], (Nx, Ny))
+SolExp_Tp0   = np.reshape(Tp[:,0], (Nx, Ny))
 SolExp_Tp100 = np.reshape(Tp[:,Nt], (Nx, Ny))
 SolExp_Tp25  = np.reshape(Tp[:,math.floor(Nt/4)], (Nx, Ny))
 SolExp_Tp50  = np.reshape(Tp[:,math.floor(Nt/2)], (Nx, Ny))
@@ -76,7 +81,7 @@ fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
 pos_x, pos_y = np.meshgrid(pos_x, pos_y)
 
 # Plot the surface.
-surf = ax.plot_surface(pos_x, pos_y, SolExp_Tp100, cmap=cm.coolwarm,
+surf = ax.plot_surface(pos_x, pos_y, SolExp_Tp75, cmap=cm.coolwarm,
                        linewidth=0, antialiased=False)
 
 # Customize the z axis.
