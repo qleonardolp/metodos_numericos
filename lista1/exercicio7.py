@@ -17,7 +17,7 @@ from matplotlib.ticker import LinearLocator
 lmb = 0.01      # Difusividade Termica
 cond = 1.00     # Condutividade Termica
 dt = 0.2       # Time step
-dx = 0.1       # Length step x
+dx = 0.4       # Length step x
 dy = dx         # Length step y
 
 A1 = 1 - 2*lmb*dt/(dx**2) - 2*lmb*dt/(dy**2)
@@ -92,9 +92,45 @@ SolExp_Tp50  = np.reshape(Tp[:,math.floor(Nt/2)], (Nx, Ny))
 SolExp_Tp75  = np.reshape(Tp[:,math.floor(3*Nt/4)], (Nx, Ny))
 Nt = Nt+1
 
-print("Temperatura media em t=0, 25, 50, 75 e 100:")
-print(np.mean(SolExp_Tp0),np.mean(SolExp_Tp25),
-      np.mean(SolExp_Tp50),np.mean(SolExp_Tp75),np.mean(SolExp_Tp100))
+#Reiniciando Temperaturas
+Tp = np.zeros([Nx*Ny, Nt]) # Temperatura
+## C.I. T0_(x,y) = 10*exp^(-20(x^2 + y^2))
+for j in range(Ny):
+    for i in range(Nx):
+        Tp[i+j*Nx,0] = Tscale*np.exp(-20*((pos_x[i])**2 + (pos_y[j])**2))
+    #endfor    
+#endfor
+
+## Abordagem Implicita:
+a_1 = 1 + 2*lmb*dt/(dx**2) + 2*lmb*dt/(dy**2)
+a_x = lmb*dt/(dx**2)
+a_y = lmb*dt/(dy**2)
+
+# Diagonais principais da matrix A:
+d1  =  a_1 * np.ones(Nx*Ny)
+d1f = -a_x * np.ones(Nx*Ny-1)
+d1t = d1f.copy()
+dyf = -a_y * np.ones(Nx*Ny-Nx)
+dyt = dyf.copy()
+
+# Montando a matrix A do sistema linear:
+A = np.diag(d1, 0)
+A = A + np.diag(d1f,  1)
+A = A + np.diag(d1t, -1)
+A = A + np.diag(dyf,  Nx)
+A = A + np.diag(dyt, -Nx)
+
+# CC:
+A[0,:] = 0
+A[0,0] = -1
+A[0,2] =  1
+
+print(A[0,:])
+print(A[Nx+1,:])
+
+
+# invertemos fora do loop apenas uma vez para simplificacao computacional:
+Ainv = np.linalg.inv(A)
 
 
 fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
@@ -113,16 +149,4 @@ ax.zaxis.set_major_formatter('{x:.02f}')
 # Add a color bar which maps values to colors.
 fig.colorbar(surf, shrink=0.5, aspect=5, format='%.3f')
 
-plt.show(block=False)
-
-
-#Reiniciando Temperaturas
-Tp = np.zeros([Nx*Ny, Nt]) # Temperatura
-## C.I. T0_(x,y) = 10*exp^(-20(x^2 + y^2))
-for j in range(Ny):
-    for i in range(Nx):
-        Tp[i+j*Nx,0] = Tscale*np.exp(-20*((pos_x[i])**2 + (pos_y[j])**2))
-    #endfor    
-#endfor
-
-## Abordagem Implicita:
+plt.show(block=True)
