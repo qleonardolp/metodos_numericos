@@ -1,3 +1,11 @@
+#///////////////////////////////////////////////////////
+#// Leonardo Felipe Lima Santos dos Santos, 2021     ///
+#// leonardo.felipe.santos@usp.br	_____ ___  ___   //
+#// github/bitbucket qleonardolp	  |  | . \/   \  //
+#////////////////////////////////	| |   \ \   |_|  //
+#////////////////////////////////	\_'_/\_`_/__|    //
+#///////////////////////////////////////////////////////
+
 # Problema de transferencia de calor unidimensional transiente
 
 import numpy as np
@@ -51,6 +59,11 @@ q_yf = np.zeros([Nx, Nt])
 
 ## Abordagem Explicita:
 for k in range(Nt-1):
+    Tp[0+0*Nx,k] = Tp[(0+2)+2*Nx,k]                     # (i,j == 0,0)
+    Tp[0+(Ny-1)*Nx,k] = Tp[(0+2)+(Ny-3)*Nx,k]           # (i,j == 0,Ny-1)
+    Tp[(Nx-1)+0*Nx,k] = Tp[((Nx-1)-2)+2*Nx,k]           # (i,j == Nx-1,0)
+    Tp[(Nx-1)+(Ny-1)*Nx,k] = Tp[((Nx-1)-2)+(Ny-3)*Nx,k] # (i,j == Nx-1,Ny-1)
+    """
     for i in range(Nx):
         if   i == 0:
             Tp[i+0*Nx,k] = Tp[(i+2)+2*Nx,k]           # (i,j == 0,0)
@@ -62,11 +75,14 @@ for k in range(Nt-1):
             Tp[i+0*Nx,k] = Tp[i+2*Nx,k]           # (j == 0)
             Tp[i+(Ny-1)*Nx,k] = Tp[i+(Ny-3)*Nx,k] # (j == Ny-1)
         # CC antes do "for" principal pois a evolucao no tempo precisa carregar a info das CCs
+    """
     for j in range(1,Ny-1):
         Tp[0+j*Nx,k] = Tp[0+2+j*Nx,k]           # (i == 0)
         Tp[Nx-1+j*Nx,k] = Tp[(Nx-1)-2+j*Nx,k]   # (i == Nx-1)
         # CC antes do "for" principal pois a evolucao no tempo precisa carregar a info das CCs
         for i in range(1,Nx-1):
+            Tp[i+0*Nx,k] = Tp[i+2*Nx,k]           # (j == 0)
+            Tp[i+(Ny-1)*Nx,k] = Tp[i+(Ny-3)*Nx,k] # (j == Ny-1)
             Tp[i+j*Nx,k+1] = A1*Tp[i+j*Nx,k] + A2*(Tp[i+1 +j*Nx,k] + Tp[i-1 +j*Nx,k]) + A3*(Tp[i+(j+1)*Nx,k] + Tp[i+(j-1)*Nx,k])
 
 Nt = Nt-1
@@ -81,7 +97,7 @@ fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
 pos_x, pos_y = np.meshgrid(pos_x, pos_y)
 
 # Plot the surface.
-surf = ax.plot_surface(pos_x, pos_y, SolExp_Tp75, cmap=cm.coolwarm,
+surf = ax.plot_surface(pos_x, pos_y, SolExp_Tp100, cmap=cm.coolwarm,
                        linewidth=0, antialiased=False)
 
 # Customize the z axis.

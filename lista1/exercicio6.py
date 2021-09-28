@@ -1,3 +1,11 @@
+#///////////////////////////////////////////////////////
+#// Leonardo Felipe Lima Santos dos Santos, 2021     ///
+#// leonardo.felipe.santos@usp.br	_____ ___  ___   //
+#// github/bitbucket qleonardolp	  |  | . \/   \  //
+#////////////////////////////////	| |   \ \   |_|  //
+#////////////////////////////////	\_'_/\_`_/__|    //
+#///////////////////////////////////////////////////////
+
 # Problema de transferencia de calor unidimensional transiente
 
 import numpy as np
@@ -10,13 +18,13 @@ from numpy.core.shape_base import block
 lmb = 0.01      # Difusividade Termica
 cond = 1.00     # Condutividade Termica
 dt = 0.003       # Time step
-dx = 0.10       # Length step
-dt = 0.01       # Time step
-dx = 0.02       # Length step
+dx = 0.05       # Length step
+#dt = 0.01       # Time step
+#dx = 0.02       # Length step
 
 A1 = lmb*dt/(dx**2)
 A2 = 1 - 2*lmb*dt/(dx**2)
-A3 = lmb*dt/(dx**2)
+A3 = A1
 
 # Critério de estabilidade: 'A1' <= 0.5
 print(A1)
@@ -30,30 +38,34 @@ Tp_t0 = 1   # C.I.
 
 tempo = np.arange(ti, tf+dt, dt)
 pos_x = np.arange(xi, xf+dx, dx)
+Nx = size(pos_x)
+Nt = size(tempo)
 
-Tp = np.ones([size(pos_x), size(tempo)]) * Tp_t0
+Tp = np.ones([Nx, Nt]) * Tp_t0
 
 ## C.C. (Neumann)
-q_xf = np.zeros(size(tempo))
-q_xi = np.zeros(size(tempo))
-for i in range(size(tempo)):
+q_xf = np.zeros(Nt)
+q_xi = np.zeros(Nt)
+for i in range(Nt):
     if tempo[i] <= 10:
         q_xi[i] = 1
     #endif
 #endfor
 
 ## Abordagem Explicita:
-for k in range(size(tempo)-1):
-    for i in range(size(pos_x)):
-        if i == 0:
-            Tp[i,k] = 2*dx/cond*q_xi[k] + Tp[i+2,k]     # CC em x=0
-        if i == (size(pos_x)-1):
-            #Tp[i+1,k] = 2*dx/cond*q_xf[k] + Tp[i-1,k]   # CC em x=L (usando q_xf qql)
-            Tp[i,k] = A2*Tp[i,k] + 2*A1*Tp[i-1,k]    # CC em x=L
-        else:
-            Tp[i,k+1] = A1*Tp[i+1,k] + A2*Tp[i,k] + A3*Tp[i-1,k]
-        #endif
-    #endfor
+for k in range(Nt):
+    if k == (Nt-1):
+        Tp[0,k] = 2*dx/cond*q_xi[k] + Tp[0+2,k]     # CC em x=0, para t final
+        Tp[Nx-1,k] = Tp[Nx-1-2,k]                   # CC em x=L, para t final
+    else:
+        Tp[0,k] = 2*dx/cond*q_xi[k] + Tp[0+2,k]     # CC em x=0
+        Tp[Nx-1,k] = Tp[Nx-1-2,k]                   # CC em x=L (adiabatica)
+        for i in range(1,Nx-1):
+            if i == (Nx-2):
+                Tp[i,k+1] = A2*Tp[i,k] + 2*A3*Tp[i-1,k]   # CC em x=L (adiabatica)
+            else:
+                Tp[i,k+1] = A1*Tp[i+1,k] + A2*Tp[i,k] + A3*Tp[i-1,k]
+        #endfor
 #endfor
 
 # Sanity Check: Tp media em tf deve ser maior que Tp de t0,
@@ -62,14 +74,17 @@ print(mean(Tp[:,-1]))
 SolExp_Tp = Tp.copy()
 
 # Reiniciando as Temperaturas
-Tp = np.ones([size(pos_x), size(tempo)]) * Tp_t0
+Tp = np.ones([Nx, Nt]) * Tp_t0
 
 ## Abordagem Implicita:
+A1 = lmb*dt/(dx**2)
+A2 = 1 + 2*lmb*dt/(dx**2)
+A3 = A1
 # Montando a matrix A do sistema linear:
 ofst = 1
-d1 = -A1 * np.ones(size(pos_x)-ofst)
-d2 =  A2 * np.ones(size(pos_x))
-d3 = -A3 * np.ones(size(pos_x)-ofst)
+d1 = -A1 * np.ones(Nx-ofst)
+d2 =  A2 * np.ones(Nx)
+d3 = -A3 * np.ones(Nx-ofst)
 
 A = np.diag(d2, 0)
 A = A + np.diag(d1, ofst)
@@ -83,20 +98,18 @@ A[-1, :] =  0
 A[-1,-1] = A2
 A[-1,-2] = -(A1 + A3)
 
-print(np.linalg.det(A))
-
 # Atalho para comentario de multiplas linhas: Shift + Alt + A
-""" # A solucao do sistema linear inverte A. Como A é constante ao longo do tempo,
+# A solucao do sistema linear inverte A. Como A é constante ao longo do tempo,
 # invertemos fora do loop apenas uma vez para simplificacao computacional:
 Ainv = np.linalg.inv(A)
 
-for k in range(size(tempo)-1):
+for k in range(Nt-1):
     b = Tp[:,k].copy()
     b[0]  = 2*dx/cond*q_xi[k+1]
     #b[-1] = 2*dx/cond*q_xf[k+1]
     Tp[:,k+1] = np.dot(Ainv,b)
 #endfor
-print(mean(Tp[:,-1])) """
+print(mean(Tp[:,-1]))
 SolImp_Tp = Tp.copy()
 
 
@@ -117,8 +130,6 @@ ax.zaxis.set_major_formatter('{x:.02f}')
 fig.colorbar(surf, shrink=0.5, aspect=5)
 
 plt.show(block=False)
-
-SolImp_Tp = SolExp_Tp.copy()                                # comentar aqui
 
 fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
 
