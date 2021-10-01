@@ -12,8 +12,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import cm
 from matplotlib.ticker import LinearLocator
-from numpy.core.fromnumeric import mean, shape, size
-from numpy.core.shape_base import block
 
 lmb = 0.01      # Difusividade Termica
 cond = 1.00     # Condutividade Termica
@@ -38,8 +36,8 @@ Tp_t0 = 1   # C.I.
 
 tempo = np.arange(ti, tf+dt, dt)
 pos_x = np.arange(xi, xf+dx, dx)
-Nx = size(pos_x)
-Nt = size(tempo)
+Nx = np.size(pos_x)
+Nt = np.size(tempo)
 
 Tp = np.ones([Nx, Nt]) * Tp_t0
 
@@ -70,7 +68,7 @@ for k in range(Nt):
 
 # Sanity Check: Tp media em tf deve ser maior que Tp de t0,
 # visto que calor entra na barra e apos 10s ela esta completamente adiabatica
-print(mean(Tp[:,-1]))
+print(np.mean(Tp[:,-1]))
 SolExp_Tp = Tp.copy()
 
 # Reiniciando as Temperaturas
@@ -109,11 +107,12 @@ for k in range(Nt-1):
     #b[-1] = 2*dx/cond*q_xf[k+1]
     Tp[:,k+1] = np.dot(Ainv,b)
 #endfor
-print(mean(Tp[:,-1]))
+print(np.mean(Tp[:,-1]))
 SolImp_Tp = Tp.copy()
 
 
 fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
+ax.set_title('Solução Explícita')
 tempo, pos_x = np.meshgrid(tempo, pos_x)
 
 # Plot the surface.
@@ -132,6 +131,7 @@ fig.colorbar(surf, shrink=0.5, aspect=5)
 plt.show(block=False)
 
 fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
+ax.set_title('Solução Implícita')
 
 # Plot the surface.
 surf = ax.plot_surface(pos_x, tempo, SolImp_Tp, cmap=cm.coolwarm,

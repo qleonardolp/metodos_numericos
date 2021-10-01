@@ -16,8 +16,11 @@ from matplotlib.ticker import LinearLocator
 
 lmb = 0.01      # Difusividade Termica
 cond = 1.00     # Condutividade Termica
-dt = 0.04       # Time step
-dx = 0.05       # Length step x
+#dt = 0.04       # Time step
+#dx = 0.05       # Length step x
+#dy = dx         # Length step y
+dt = 0.01       # Time step
+dx = 0.1       # Length step x
 dy = dx         # Length step y
 
 A1 = 1 - 2*lmb*dt/(dx**2) - 2*lmb*dt/(dy**2)
@@ -173,13 +176,26 @@ SolImp_Tp50  = np.reshape(Tp[:,math.floor(Nt/2)], (Nx, Ny))
 SolImp_Tp75  = np.reshape(Tp[:,math.floor(3*Nt/4)], (Nx, Ny))
 Nt = Nt+1
 
+Texp_max00   = np.max(SolExp_Tp0)
+Texp_max25   = np.max(SolExp_Tp25)
+Texp_max50   = np.max(SolExp_Tp50)
+Texp_max75   = np.max(SolExp_Tp75)
+Texp_max100  = np.max(SolExp_Tp100)
 
-fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
+Timp_max00   = np.max(SolImp_Tp0)
+Timp_max25   = np.max(SolImp_Tp25)
+Timp_max50   = np.max(SolImp_Tp50)
+Timp_max75   = np.max(SolImp_Tp75)
+Timp_max100  = np.max(SolImp_Tp100)
+
+
 pos_x, pos_y = np.meshgrid(pos_x, pos_y)
 
+fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
+ax.set_title('Solução Explícita, t = 0')
 # Plot the surface.
-surf = ax.plot_surface(pos_x, pos_y, SolExp_Tp100, cmap=cm.coolwarm,
-                       linewidth=0, antialiased=False)
+surf = ax.plot_surface(pos_x, pos_y, SolExp_Tp0, cmap=cm.coolwarm, 
+                        linewidth=0, antialiased=False)
 
 # Customize the z axis.
 ax.set_zlim(0.00, Tscale)
@@ -188,6 +204,21 @@ ax.zaxis.set_major_locator(LinearLocator(5+1))
 ax.zaxis.set_major_formatter('{x:.02f}')
 
 # Add a color bar which maps values to colors.
-fig.colorbar(surf, shrink=0.5, aspect=5, format='%.3f')
+fig.colorbar(surf, shrink=0.5, aspect=5, format='%.3f', label='Temperatura')
+plt.show(block=False)
 
+fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
+ax.set_title('Solução Implícita, t = 0')
+# Plot the surface.
+surf = ax.plot_surface(pos_x, pos_y, SolImp_Tp0, cmap=cm.coolwarm, 
+                        linewidth=0, antialiased=False)
+
+# Customize the z axis.
+ax.set_zlim(0.00, Tscale)
+ax.zaxis.set_major_locator(LinearLocator(5+1))
+# A StrMethodFormatter is used automatically
+ax.zaxis.set_major_formatter('{x:.02f}')
+
+# Add a color bar which maps values to colors.
+fig.colorbar(surf, shrink=0.5, aspect=5, format='%.3f', label='Temperatura')
 plt.show(block=True)
