@@ -16,8 +16,8 @@ from matplotlib.ticker import LinearLocator
 
 lmb = 0.01      # Difusividade Termica
 cond = 1.00     # Condutividade Termica
-dt = 0.2       # Time step
-dx = 0.1       # Length step x
+dt = 0.04       # Time step
+dx = 0.05       # Length step x
 dy = dx         # Length step y
 
 A1 = 1 - 2*lmb*dt/(dx**2) - 2*lmb*dt/(dy**2)
@@ -25,6 +25,9 @@ A2 = lmb*dt/(dx**2)
 A3 = lmb*dt/(dy**2)
 
 print(A2)
+
+if A2 >= 0.25:
+    quit()
 
 ti = 0
 tf = 100
@@ -83,6 +86,7 @@ for k in range(Nt):
                 Tp[i+j*Nx,k+1] = A1*Tp[i+j*Nx,k] + A2*(Tp[i+1 +j*Nx,k] + Tp[i-1 +j*Nx,k]) + A3*(Tp[i+(j+1)*Nx,k] + Tp[i+(j-1)*Nx,k])
     #endif
 #endfor
+print(np.mean(Tp[:,-1]))
 
 Nt = Nt-1
 SolExp_Tp0   = np.reshape(Tp[:,0], (Nx, Ny))
@@ -136,14 +140,14 @@ for j in range(1,Ny):
 #endfor
 
 # Adiabatica em x = L:
+# esta funcionando com a mesma cond de x=0...
 
-
-""" # Adiabatica em y = 0: (respeitando a CC de x=0)
-A[(2*Nx+1):(3*Nx-1),:] = 0
-for i in range(1,Nx):
-    A[i+2*Nx,i] = -1
-    A[i+2*Nx,i+2*Nx] = 1
-#endfor """
+# Adiabatica em y = L:
+A[Nx*(Ny-1):,:] = 0
+for i in range(Nx):
+    A[i+Nx*(Ny-1),i+Nx*(Ny-1)] =  1
+    A[i+Nx*(Ny-1),i+Nx*(Ny-3)] = -1
+#endfor
 
 #print(A[0,:])
 #print(A[Nx,:])
@@ -156,6 +160,7 @@ for k in range(Nt-1):
     b = Tp[:,k].copy()
     b[::Nx] = 0         # CC x=0
     b[:Nx]  = 0         # CC y=0
+    b[Nx*(Ny-1):]  = 0  # CC y=L
     Tp[:,k+1] = np.dot(Ainv,b)
 #endfor
 print(np.mean(Tp[:,-1]))
@@ -173,7 +178,7 @@ fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
 pos_x, pos_y = np.meshgrid(pos_x, pos_y)
 
 # Plot the surface.
-surf = ax.plot_surface(pos_x, pos_y, SolImp_Tp25, cmap=cm.coolwarm,
+surf = ax.plot_surface(pos_x, pos_y, SolExp_Tp100, cmap=cm.coolwarm,
                        linewidth=0, antialiased=False)
 
 # Customize the z axis.
