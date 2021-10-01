@@ -17,7 +17,7 @@ from matplotlib.ticker import LinearLocator
 lmb = 0.01      # Difusividade Termica
 cond = 1.00     # Condutividade Termica
 dt = 0.2       # Time step
-dx = 0.4       # Length step x
+dx = 0.1       # Length step x
 dy = dx         # Length step y
 
 A1 = 1 - 2*lmb*dt/(dx**2) - 2*lmb*dt/(dy**2)
@@ -121,23 +121,59 @@ A = A + np.diag(dyf,  Nx)
 A = A + np.diag(dyt, -Nx)
 
 # CC:
-A[0,:] = 0
-A[0,0] = -1
-A[0,2] =  1
+# Adiabatica em y = 0:
+A[:Nx,:] = 0
+for i in range(Nx):
+    A[i,i] = 1
+    A[i,i+2*Nx] = -1
+#endfor
 
-print(A[0,:])
-print(A[Nx+1,:])
+# Adiabatica em x = 0:
+A[Nx::Nx,:] = 0
+for j in range(1,Ny):
+    A[j*Nx,j*Nx]   = -1
+    A[j*Nx,j*Nx+2] =  1
+#endfor
+
+# Adiabatica em x = L:
+
+
+""" # Adiabatica em y = 0: (respeitando a CC de x=0)
+A[(2*Nx+1):(3*Nx-1),:] = 0
+for i in range(1,Nx):
+    A[i+2*Nx,i] = -1
+    A[i+2*Nx,i+2*Nx] = 1
+#endfor """
+
+#print(A[0,:])
+#print(A[Nx,:])
+#print(A[2*Nx,:])
 
 
 # invertemos fora do loop apenas uma vez para simplificacao computacional:
 Ainv = np.linalg.inv(A)
+for k in range(Nt-1):
+    b = Tp[:,k].copy()
+    b[::Nx] = 0         # CC x=0
+    b[:Nx]  = 0         # CC y=0
+    Tp[:,k+1] = np.dot(Ainv,b)
+#endfor
+print(np.mean(Tp[:,-1]))
+
+Nt = Nt-1
+SolImp_Tp0   = np.reshape(Tp[:,0], (Nx, Ny))
+SolImp_Tp100 = np.reshape(Tp[:,Nt], (Nx, Ny))
+SolImp_Tp25  = np.reshape(Tp[:,math.floor(Nt/4)], (Nx, Ny))
+SolImp_Tp50  = np.reshape(Tp[:,math.floor(Nt/2)], (Nx, Ny))
+SolImp_Tp75  = np.reshape(Tp[:,math.floor(3*Nt/4)], (Nx, Ny))
+Nt = Nt+1
 
 
 fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
 pos_x, pos_y = np.meshgrid(pos_x, pos_y)
 
 # Plot the surface.
-surf = ax.plot_surface(pos_x, pos_y, SolExp_Tp25, cmap=cm.coolwarm,
+surf = ax.plot_surface(pos_x, pos_y, SolImp_Tp25, cmap=cm.coolwarm,
                        linewidth=0, antialiased=False)
 
 # Customize the z axis.
