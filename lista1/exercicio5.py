@@ -48,7 +48,7 @@ x = 2
 anl_dfdex = dfdex(x)
 anl_ddfdex = ddfdex(x)
 
-num_step = 100
+num_step = 500
 step = np.logspace(-7,-1,num_step)
 estC2dfdex = np.zeros(np.size(step))
 estC4dfdex = estC2dfdex.copy()
@@ -64,15 +64,23 @@ for i in range(step.size):
 ##  Absolute Error Plots (log-log):
 
 plt.figure()
-plt.loglog(step, abs(anl_dfdex*np.ones(num_step) - estC2dfdex) )
-plt.loglog(step, abs(anl_dfdex*np.ones(num_step) - estC4dfdex) )
+plt.loglog(step, abs(anl_dfdex*np.ones(num_step) - estC2dfdex), label='C2' )
+plt.loglog(step, abs(anl_dfdex*np.ones(num_step) - estC4dfdex), label='C4' )
+plt.title('Gráfico log-log do erro das estimativas de f\'(2) em funçao de $\Delta x$')
+plt.xlabel('$\Delta x$')
+plt.ylabel('$|E|$')
+plt.legend(loc='upper right')
 plt.grid()
 plt.show(block=False)
 
 
 plt.figure()
-plt.loglog(step, abs(anl_ddfdex*np.ones(num_step) - estC2Ddfdex) )
-plt.loglog(step, abs(anl_ddfdex*np.ones(num_step) - estC4Ddfdex) )
+plt.loglog(step, abs(anl_ddfdex*np.ones(num_step) - estC2Ddfdex), label='C2' )
+plt.loglog(step, abs(anl_ddfdex*np.ones(num_step) - estC4Ddfdex), label='C4' )
+plt.title('Gráfico log-log do erro das estimativas de f\'\'(2) em funçao de $\Delta x$')
+plt.xlabel('$\Delta x$')
+plt.ylabel('$|E|$')
+plt.legend(loc='upper right')
 plt.grid()
 plt.show(block=True)
 
