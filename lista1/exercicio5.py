@@ -1,3 +1,11 @@
+#///////////////////////////////////////////////////////
+#// Leonardo Felipe Lima Santos dos Santos, 2021     ///
+#// leonardo.felipe.santos@usp.br	_____ ___  ___   //
+#// github/bitbucket qleonardolp	  |  | . \/   \  //
+#////////////////////////////////	| |   \ \   |_|  //
+#////////////////////////////////	\_'_/\_`_/__|    //
+#///////////////////////////////////////////////////////
+
 # Exercicio para calcular aproximacoes (FDM) de df/dx e d2f/dx2 para f(x) = e^(x)*sin(x)
 
 import numpy as np
