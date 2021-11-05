@@ -47,8 +47,20 @@ for N in range(30):
     Integral[N] = 0.5*(Lsup - Linf)*np.dot(W_vec, fdex)
 #endfor
 
+#quit()
 #Plotting
 plt.figure()
-plt.plot(np.linspace(0,30), Integral)
+N = np.linspace(1,30,30)
+plt.plot(N, Integral,'--b')
+plt.xlabel(r'$n$')
+plt.ylabel(r'$\int J_0(x) dx$')
 plt.grid()
-plt.show()
+plt.show(block=False)
+
+plt.figure()
+N = np.linspace(10,30,20)
+plt.plot(N, Integral[10:],'--b')
+plt.xlabel(r'$n$')
+plt.ylabel(r'$\int J_0(x) dx$')
+plt.grid()
+plt.show(block=True)
