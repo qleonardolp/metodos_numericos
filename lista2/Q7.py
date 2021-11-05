@@ -63,7 +63,7 @@ plt.show(block=False)
 Xe = np.array([0, 2, 3, -1])
 Ye = np.array([0, 1, 2,  2])
 # Veja até 40, pois comeca a divergir a partir dos N=35
-Nmax = 20
+Nmax = 16
 Integral = np.zeros(Nmax)
 
 for N in range(Nmax):
@@ -98,7 +98,13 @@ for N in range(Nmax):
             Integral[N] += Wx_vec[i]*We_vec[j]*detJ*f_de_xieta(Xe, Ye, x, n)
 
 #endfor
-print(Integral[-1]) #3.4722222101382374
+print(Integral[0])
+print(Integral[3])
+print(Integral[8])
+print(Integral[-1])
+#N=20: 3.4722222101382374
+
+quit()
 #Plotting
 plt.figure()
 N = np.linspace(1,Nmax,Nmax)
