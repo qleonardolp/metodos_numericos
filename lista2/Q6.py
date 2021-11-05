@@ -5,6 +5,7 @@
 #///////////////////////////////////////////////////////
 
 ## Integral da funcao de Bessel (0) via quadratura gaussiana.
+# Resultado pelo WolframAlpha: 1.3875672520098649871
 
 import numpy as np
 from scipy import special as sp
@@ -13,34 +14,41 @@ import matplotlib.pyplot as plt
 
 Linf = 0
 Lsup = 3
-n_gp = 24
-poly_ord = 2*n_gp - 1
-dim = poly_ord + 1
+Integral = np.zeros(30)
 
-x    = np.linspace(Linf, Lsup, n_gp)
-eta  = np.zeros(n_gp)
-fdex = np.zeros(n_gp)
-# linear mapping
-for i, xk in enumerate(x):
-    eta[i]  = (2*xk - (Linf + Lsup))/(Lsup - Linf)
-    fdex[i] = sp.jv(0,xk)   # Funcao de Bessel do primeiro tipo (J_0)
+for N in range(30):
+    n_gp = N+1
+    poly_ord = 2*n_gp - 1
+    dim = poly_ord + 1
 
-P_vec = np.zeros(dim)
-W_vec = np.zeros(n_gp)
-M_mtx = np.zeros((n_gp,dim))
+    x    = np.linspace(Linf, Lsup, n_gp)
+    eta  = np.zeros(n_gp)
+    fdex = np.zeros(n_gp)
+    # linear mapping
+    for i, xk in enumerate(x):
+        eta[i]  = (2*xk - (Linf + Lsup))/(Lsup - Linf)
+        fdex[i] = sp.jv(0,xk)   # Funcao de Bessel do primeiro tipo (J_0)
 
-# construcao de ^P:
-for i in range(dim):
-    P_vec[i] = (1**(i+1) - (-1)**(i+1))/(i+1)
+    P_vec = np.zeros(dim)
+    W_vec = np.zeros(n_gp)
+    M_mtx = np.zeros((n_gp,dim))
 
-# construcao de [M]:
-for i in range(n_gp):
-    for j in range(dim):
-        M_mtx[i,j] = eta[i]**(j)
+    # construcao de ^P:
+    for i in range(dim):
+        P_vec[i] = (1**(i+1) - (-1)**(i+1))/(i+1)
 
-W_vec = np.matmul( np.linalg.pinv(M_mtx.T), P_vec) # pseudoinversa pois M nao eh quadrada
+    # construcao de [M]:
+    for i in range(n_gp):
+        for j in range(dim):
+            M_mtx[i,j] = eta[i]**(j)
 
-Integral = 0.5*(Lsup - Linf)*np.dot(W_vec, fdex)
-print(Integral)
+    W_vec = np.matmul( np.linalg.pinv(M_mtx.T), P_vec) # pseudoinversa pois M nao eh quadrada
 
-# Resultado pelo WolframAlpha: 1.3875672520098649871
+    Integral[N] = 0.5*(Lsup - Linf)*np.dot(W_vec, fdex)
+#endfor
+
+#Plotting
+plt.figure()
+plt.plot(np.linspace(0,30), Integral)
+plt.grid()
+plt.show()
