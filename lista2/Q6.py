@@ -7,7 +7,6 @@
 ## Integral da funcao de Bessel (0) via quadratura gaussiana.
 
 import numpy as np
-from numpy.random import mtrand
 from scipy import special as sp
 import matplotlib.pyplot as plt
 ## Main Code ##
