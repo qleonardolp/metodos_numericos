@@ -5,12 +5,21 @@
 #///////////////////////////////////////////////////////
 
 ## Integral da funcao x^2 + y^2 via quadratura gaussiana.
+# Versao errada:
+# 0.0   3.113988467592265   3.472500366720472   3.472221229275364
+# Versao corrigida:
+# 1.40625   3.472222222222221   3.4722222222222237  3.4722222222222205
+# Versao corrigida (N<4):
+# 1.40625   3.472222222222222   3.472222222222224  3.472222222222221
 
+from numpy.polynomial.legendre import leggauss
 import numpy as np
 from matplotlib import cm
 import matplotlib.pyplot as plt
 
-nod_coords = {1:(-1,-1), 2:(1,-1), 3:(1,1), 4:(-1,1)}   # Xi-Eta table 4Q (global)
+nod_coords = {1:(-1,-1), 2:(1,-1), 3:(1,1), 4:(-1,1)}   # Xi-Eta table 4Q (var global)
+
+## Funcoes auxiliares
 
 # Xi-Eta Mapping
 def map4q(nodes, xi, eta):  # passar nodes contendo x ou y, nao o par (x,y)
@@ -35,8 +44,7 @@ def jac_de_xieta(xe, ye, xi, eta):
     J[1,0] = np.dot(delMap_eta, xe)
     J[1,1] = np.dot(delMap_eta, ye)
     return J
-
-
+##
 
 # Check functions:
 Xe = np.array([0, 2, 3, -1])
@@ -51,7 +59,7 @@ for i, x in enumerate(xi):
             f_de_xy[i,j,1] = map4q(Xe, x, n)
             f_de_xy[i,j,2] = map4q(Ye, x, n)
 
-# Plotting...
+# Plotting... nao sei pq so plot uma fronteira, quando na vdd eu esperava a superficie
 plt.figure()
 ax = plt.axes(projection='3d')
 ax.plot_surface(f_de_xy[:,:,1], f_de_xy[:,:,2], f_de_xy[:,:,0], 
@@ -62,8 +70,7 @@ plt.show(block=False)
 
 Xe = np.array([0, 2, 3, -1])
 Ye = np.array([0, 1, 2,  2])
-# Veja até 40, pois comeca a divergir a partir dos N=35
-Nmax = 16
+Nmax = 4
 Integral = np.zeros(Nmax)
 
 for N in range(Nmax):
@@ -71,49 +78,29 @@ for N in range(Nmax):
     poly_ord = 2*n_gp - 1
     dim = poly_ord + 1
 
-    xi  = np.linspace(-1,1,n_gp)
-    eta = np.linspace(-1,1,n_gp)
-
-    P_vec = np.zeros(dim)
-    Wx_vec = np.zeros(n_gp)
-    We_vec = np.zeros(n_gp)
-    Mx_mtx = np.zeros((n_gp,dim))
-    Me_mtx = np.zeros((n_gp,dim))
-
-    # construcao de ^P:
-    for i in range(dim):
-        P_vec[i] = (1**(i+1) - (-1)**(i+1))/(i+1)
-
-    # construcao de [M]:
-    for i in range(n_gp):
-        for j in range(dim):
-            Mx_mtx[i,j] = xi[i]**(j)
-
-    Wx_vec = np.matmul( np.linalg.pinv(Mx_mtx.T), P_vec) # pseudoinversa pois M nao eh quadrada
-    We_vec = Wx_vec.copy()
+    # sample points and weights for Gauss-Legendre quadrature:
+    xi, Wx_vec = leggauss(n_gp)
+    eta, We_vec = leggauss(n_gp)
 
     for i, x in enumerate(xi):
         for j, n in enumerate(eta):
             detJ = np.linalg.det(jac_de_xieta(Xe, Ye, x, n))
             Integral[N] += Wx_vec[i]*We_vec[j]*detJ*f_de_xieta(Xe, Ye, x, n)
-
 #endfor
-print(Integral[0])
-print(Integral[3])
-print(Integral[8])
-print(Integral[-1])
-#N=20: 3.4722222101382374
 
-quit()
+print(Integral)
+
+#quit()
 #Plotting
 plt.figure()
 N = np.linspace(1,Nmax,Nmax)
 plt.plot(N, Integral,'--b')
-plt.xlabel(r'$n$')
+plt.xlabel(r'$\sqrt{n}$')
 plt.ylabel(r'$\int x^2 + y^2 d\Omega$')
 plt.grid()
-plt.show(block=False)
+plt.show(block=True)
 
+quit()
 plt.figure()
 N = np.linspace(10,Nmax,Nmax-10)
 plt.plot(N, Integral[10:],'--b')
