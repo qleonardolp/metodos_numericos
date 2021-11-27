@@ -11,15 +11,41 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy import sparse
 from scipy.sparse.linalg import spsolve
+from numpy.polynomial.legendre import leggauss
 
 plt.style.use('dark_background') # comentar essa linha para ter as figuras com fundo branco
+
+nod_coords = {1:(-1,-1), 2:(1,-1), 3:(1,1), 4:(-1,1)}   # Xi-Eta table 4Q (var global)
+
+def dForma_dxi(eta):
+    dN_dxi  = np.zeros(4)
+    for i in range(4):
+        dN_dxi[i] = 0.25*(1 + nod_coords[i+1][1]*eta)*nod_coords[i+1][0]
+    return dN_dxi
+
+def dForma_deta(xi):
+    dN_deta  = np.zeros(4)
+    for i in range(4):
+        dN_deta[i] = 0.25*(1 + nod_coords[i+1][0]*xi)*nod_coords[i+1][1]
+    return dN_deta
+
+def jac_de_xieta(xe, ye, e, n):
+    J = np.zeros((2,2))
+    dN_xi  = dForma_dxi(n)
+    dN_eta = dForma_deta(e)
+    J[0,0] = np.dot(dN_xi, xe)
+    J[0,1] = np.dot(dN_xi, ye)
+    J[1,0] = np.dot(dN_eta, xe)
+    J[1,1] = np.dot(dN_eta, ye)
+    return J
 
 ## FEM2DHT Class Definition
 
 class fem2DHeaTransfer():
-    def __init__(self):
+    def __init__(self, method):
         self.nnodes = 0
         self.nelements = 0
+        self.method = method
 
     def createNodes(self, coords):
         self.nodes = coords
@@ -29,7 +55,10 @@ class fem2DHeaTransfer():
         self.elements = []
         self.connectivities = connectivities
         for item in connectivities:
-            element = HT3(item)
+            if self.method == 'tri':
+                element = HT3(item)
+            if self.method == 'quad':
+                element = HT4(item)
             self.elements.append(element)
 
         self.nelements = len(self.elements)
@@ -74,7 +103,7 @@ class fem2DHeaTransfer():
         values = []
 
         for element in self.elements:
-            r, c, v = element.Kmatrix(self.nodes)
+            r, c, v = element.Ke(self.nodes)
             rows.append(r)
             cols.append(c)
             values.append(v)
@@ -127,7 +156,7 @@ class HT3():
         self.enodes = nodes
         self.props = 0.0
 
-    def Kmatrix(self, coords):
+    def Ke(self, coords): # constroi a matrix K do elemento
         x = coords[self.enodes, 0]
         y = coords[self.enodes, 1]
 
@@ -140,15 +169,51 @@ class HT3():
         B[1][1] = x[0] - x[2]
         B[1][2] = x[1] - x[0]
 
-        A = 0.5*(x[0]*y[1] + y[0]*x[2] + x[1]*y[2] - x[2]*y[1] - x[0]*y[2] - x[1]*y[0])
+        Ae = 0.5*(x[0]*y[1] + y[0]*x[2] + x[1]*y[2] - x[2]*y[1] - x[0]*y[2] - x[1]*y[0])
 
-        B = (1.0/(2*A)) * B
+        B = (1.0/(2*Ae)) * B # Be, pg 160, eq 7.20
 
-        K = self.props * np.matmul(B.transpose(), B) * A
+        K = self.props * np.matmul(B.transpose(), B) * Ae
 
-        self.area = A
+        # formulas no Jacob, pg 155 e 156, 160
+
+        self.area = Ae
         self.centroid = [np.mean(x), np.mean(y)]
 
+        ind_rows = [self.enodes[0], self.enodes[0], self.enodes[0], self.enodes[1], self.enodes[1], self.enodes[2]]
+        ind_cols = [self.enodes[0], self.enodes[1], self.enodes[2], self.enodes[1], self.enodes[2], self.enodes[2]]
+        values =   [K[0,0], K[0,1], K[0,2], K[1,1], K[1,2], K[2,2]]
+
+        return ind_rows, ind_cols, values
+
+class HT4():
+    def __init__(self, nodes):
+        self.enodes = nodes
+        self.props = 0.0
+
+    def Ke(self, coords): # constroi a matrix K do elemento
+        x = np.array(coords[self.enodes, 0], dtype='float').flatten()
+        y = np.array(coords[self.enodes, 1], dtype='float').flatten()
+
+        Bint = np.zeros((2,4))
+        # sample points and weights for Gauss-Legendre quadrature:
+        Ngp = 4
+        xi, Wx = leggauss(Ngp)
+        eta, We = leggauss(Ngp)
+
+        for i, q in enumerate(xi):
+            for j, n in enumerate(eta):
+                Je = jac_de_xieta(x, y, q, n)
+                Je_inv = np.linalg.inv(Je)
+                G = np.array([dForma_dxi(n), dForma_deta(q)])
+                Be = Je_inv*G
+                Bint[N,N] += Wx[i]*We[j]*(2)*Be[N,N]    #TODO definir for dos indices N,N...
+
+        K = self.props * Bint
+
+        #self.area = A
+        self.centroid = [np.mean(x), np.mean(y)]
+        #...
         ind_rows = [self.enodes[0], self.enodes[0], self.enodes[0], self.enodes[1], self.enodes[1], self.enodes[2]]
         ind_cols = [self.enodes[0], self.enodes[1], self.enodes[2], self.enodes[1], self.enodes[2], self.enodes[2]]
         values =   [K[0,0], K[0,1], K[0,2], K[1,1], K[1,2], K[2,2]]
@@ -158,9 +223,11 @@ class HT3():
 
 ## Main Code ##
 
-problem = fem2DHeaTransfer()
+met = 'tri'   # tri ou quad
+problem = fem2DHeaTransfer(met)
 
 mesh = meshio.read('./util/L2/ex1_mesh1_tri.msh')
+#mesh = meshio.read('./util/L2/ex1_mesh1_quad.msh')
 coords = np.array(mesh.points[:,0:2])
 connectivities = mesh.cells[-1].data
 
