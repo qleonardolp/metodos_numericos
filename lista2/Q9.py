@@ -38,32 +38,34 @@ class fem2DHeaTransfer():
         for element in self.elements:
             element.props = props
 
-    def createBoundaryConds(self, conditions, nodes, values):
-        self.nds_left = []
-        self.nds_right = []
-        self.nds_top = []
-        self.nds_bot = []
-        self.vals_left = []
-        self.vals_right = []
-        self.vals_top = []
-        self.vals_bot = []
+    def createBoundaryConds(self, conditions, des_nodes, des_values):
+        self.bcs_nodes = [] # id/ tipo/ valor
         eps = 0.000001
-        for k,elemt in enumerate(self.elements):
-            if elemt.nodes[0] < eps: #(x=0)
-                self.nds_left.append(elemt.nodes)
-                self.vals_left.append(conditions['Esq'][1])
-            if elemt.nodes[0] > 1-eps: #(x=1)
-                self.nds_right.append(elemt.nodes)
-                self.vals_right.append(conditions['Dir'][1])
-            if elemt.nodes[1] < eps: #(y=0)
-                self.nds_bot.append(elemt.nodes)
-                self.vals_bot.append(conditions['Inf'][1])
-            if elemt.nodes[1] > 1-eps: #(y=1)
-                self.nds_top.append(elemt.nodes)
-                self.vals_top.append(conditions['Sup'][1])
-
-        self.bcs_nodes = nodes
-        self.bcs_values = values
+        aux = True
+        if aux:
+            for i,nd in enumerate(self.nodes):
+                if nd[0] < eps: #(x=0)
+                    typ, val = conditions['E']
+                    self.bcs_nodes.append((i, typ, val))
+                if nd[0] > (1-eps): #(x=1)
+                    typ, val = conditions['D']
+                    self.bcs_nodes.append((i, typ, val))
+                if nd[1] < eps: #(y=0)
+                    typ, val = conditions['I']
+                    self.bcs_nodes.append((i, typ, val))
+                if nd[1] > (1-eps): #(y=1)
+                    typ, val = conditions['S']
+                    self.bcs_nodes.append((i, typ, val))
+            # pontos nos vertices satisfazem as condicoes 2x
+            # remocao por pop considera a mudanca de id da remocao anterior...
+            self.bcs_nodes.pop(1)
+            self.bcs_nodes.pop(2)
+            self.bcs_nodes.pop(3)
+            self.bcs_nodes.pop(4)
+            self.bcs_nodes.append((4, 0, 10.0)) # bug?
+        else: # opcao para usar o modo original de BCs
+            for k,nd in enumerate(des_nodes):
+                self.bcs_nodes.append((nd, 0, des_values[k]))
 
     def solve(self):
 
@@ -91,12 +93,12 @@ class fem2DHeaTransfer():
         # 2) Aplicação das BCs no vetor fglobal
         # 3) Aplicar as condições de contorno na matriz Kglobal
         w = 1e20
-        nbcs = len(self.bcs_nodes)
-        for k in range(nbcs):
-            node = self.bcs_nodes[k]
-            fglobal[node] = self.bcs_values[k] * w
-            Kglobal[node, node] += w
-
+        # usado para BCs de Dirichlet
+        for nd in self.bcs_nodes:
+            if nd[1] == 0:
+                fglobal[nd[0]] = nd[2] * w
+                Kglobal[nd[0], nd[0]] += w
+        
         self.Kglobal = Kglobal
         self.fglobal = fglobal
         # 4) Resolver o problema
@@ -177,9 +179,9 @@ problem.defineProperties(alpha)
 T1 = 30.0
 T2 = 10.0
 q  = 0.00
-# tipo 0: Dirichlet | 1: Neumann
-bcs = {'Esq':(0,T1), 'Dir':(0,T2), 'Sup':(1,q), 'Inf':(1,q)}
-problem.createBoundaryConds(bcs, [0, 2, 4], [100, 50, 75])
+# tipo 0: Dirichlet | 1: Neumann (E: Esq, D: Dir, Sup: Superior, Inf: Inferior)
+bcs = {'E':(0,T1), 'D':(0,T2), 'S':(1,q), 'I':(1,q)}
+problem.createBoundaryConds(bcs, [0, 2, 4], [10, 5, 7.5])
 
 problem.solve()
 
