@@ -9,11 +9,12 @@
 import meshio
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib import cm
 from scipy import sparse
 from scipy.sparse.linalg import spsolve
 from numpy.polynomial.legendre import leggauss
 
-plt.style.use('dark_background') # comentar essa linha para ter as figuras com fundo branco
+#plt.style.use('dark_background') # comentar essa linha para ter as figuras com fundo branco
 
 nod_coords = {1:(-1,-1), 2:(1,-1), 3:(1,1), 4:(-1,1)}   # Xi-Eta table 4Q (var global)
 
@@ -134,20 +135,33 @@ class fem2DHeaTransfer():
         self.T = spsolve(Kglobal, fglobal)
 
     def plot(self):
-        plt.figure()
-        plt.triplot(self.nodes[:,0], self.nodes[:,1], self.connectivities, '-w', linewidth=0.5)
-        plt.axis('off')
-        plt.axis('equal')
+        if self.method == 'tri':
+            plt.figure()
+            plt.triplot(self.nodes[:,0], self.nodes[:,1], self.connectivities, '-w', linewidth=0.5)
+            plt.axis('off')
+            plt.axis('equal')
 
-        plt.figure()
-        plt.tripcolor(self.nodes[:,0], self.nodes[:,1], self.connectivities, self.T, shading='gouraud')
-        plt.triplot(self.nodes[:,0], self.nodes[:,1], self.connectivities, '-w', linewidth=0.5)
-        plt.colorbar()
-        plt.axis('off')
-        plt.axis('equal')
-        plt.title('Temperature')
+            plt.figure()
+            plt.tripcolor(self.nodes[:,0], self.nodes[:,1], self.connectivities, self.T, shading='gouraud')
+            plt.triplot(self.nodes[:,0], self.nodes[:,1], self.connectivities, '-w', linewidth=0.5)
+            plt.colorbar()
+            plt.axis('off')
+            plt.axis('equal')
+            plt.title('Temperatura')
 
-        plt.show()
+            plt.show()
+        if self.method == 'quad':
+            # remover o ponto do meio antes...
+            X = np.delete(self.nodes[:,0], 4)
+            Y = np.delete(self.nodes[:,1], 4)
+            Temp = np.delete(self.T, 4)
+            axs = plt.figure().add_subplot(projection='3d')
+            #axs.scatter(self.nodes[:,0], self.nodes[:,1], self.T, s=1.2, c=self.T)
+            axs.plot_trisurf(X, Y, Temp, cmap=cm.viridis, linewidth=4)
+            axs.set_xlabel('x')
+            axs.set_ylabel('y')
+            axs.set_zlabel('Temperatura')
+            plt.show()
 
 
 
@@ -195,7 +209,7 @@ class HT4():
         x = np.array(coords[self.enodes, 0], dtype='float').flatten()
         y = np.array(coords[self.enodes, 1], dtype='float').flatten()
 
-        Bint = np.zeros((2,4))
+        Bint = np.zeros((4,4))
         # sample points and weights for Gauss-Legendre quadrature:
         Ngp = 4
         xi, Wx = leggauss(Ngp)
@@ -203,35 +217,47 @@ class HT4():
 
         for i, q in enumerate(xi):
             for j, n in enumerate(eta):
-                Je = jac_de_xieta(x, y, q, n)
-                Je_inv = np.linalg.inv(Je)
+                Je_inv = np.linalg.inv( jac_de_xieta(x, y, q, n) )
                 G = np.array([dForma_dxi(n), dForma_deta(q)])
-                Be = Je_inv*G
-                Bint[N,N] += Wx[i]*We[j]*(2)*Be[N,N]    #TODO definir for dos indices N,N...
+                B = np.matmul(Je_inv, G)
+                Bint += Wx[i]*We[j]*(2)* np.matmul(B.transpose(), B)
 
         K = self.props * Bint
 
-        #self.area = A
+        # conferir essa conta da area
+        A1 = 0.5*(x[0]*y[1] + y[0]*x[2] + x[1]*y[2] - x[2]*y[1] - x[0]*y[2] - x[1]*y[0])
+        A2 = 0.5*(x[0]*y[3] + y[0]*x[2] + x[3]*y[2] - x[2]*y[3] - x[0]*y[2] - x[3]*y[0])
+
+        self.area = A1 + A2 # area dos dois triangulos definidos pelo quadrilatero
         self.centroid = [np.mean(x), np.mean(y)]
-        #...
-        ind_rows = [self.enodes[0], self.enodes[0], self.enodes[0], self.enodes[1], self.enodes[1], self.enodes[2]]
-        ind_cols = [self.enodes[0], self.enodes[1], self.enodes[2], self.enodes[1], self.enodes[2], self.enodes[2]]
-        values =   [K[0,0], K[0,1], K[0,2], K[1,1], K[1,2], K[2,2]]
+        
+        ind_rows = [self.enodes[0], self.enodes[0], self.enodes[0], self.enodes[0], 
+                    self.enodes[1], self.enodes[1], self.enodes[1], self.enodes[2], 
+                    self.enodes[2], self.enodes[3]]
+
+        ind_cols = [self.enodes[0], self.enodes[1], self.enodes[2], self.enodes[3],
+                    self.enodes[1], self.enodes[2], self.enodes[3], self.enodes[2], 
+                    self.enodes[3], self.enodes[3]]
+
+        values =   [K[0,0], K[0,1], K[0,2], K[0,3], 
+                    K[1,1], K[1,2], K[1,3], K[2,2],
+                    K[2,3], K[3,3]]
 
         return ind_rows, ind_cols, values
 
 
 ## Main Code ##
 
-met = 'tri'   # tri ou quad
+met = 'quad'   # tri ou quad
 problem = fem2DHeaTransfer(met)
-
-mesh = meshio.read('./util/L2/ex1_mesh1_tri.msh')
-#mesh = meshio.read('./util/L2/ex1_mesh1_quad.msh')
+if met == 'tri':
+    mesh = meshio.read('./util/L2/ex1_mesh1_tri.msh')
+if met == 'quad':
+    mesh = meshio.read('./util/L2/ex1_mesh1_quad.msh')
 coords = np.array(mesh.points[:,0:2])
 connectivities = mesh.cells[-1].data
 
-# Implementação do elemento Q4
+# Implementacao do elemento Q4
 # connectivities = ([0, 1, 2, 3])
 
 # Geometry and mesh
