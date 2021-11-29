@@ -10,11 +10,12 @@ import meshio
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import cm
+from numpy.lib.function_base import append
 from scipy import sparse
 from scipy.sparse.linalg import spsolve
 from numpy.polynomial.legendre import leggauss
 
-#plt.style.use('dark_background') # comentar essa linha para ter as figuras com fundo branco
+plt.style.use('dark_background') # comentar essa linha para ter as figuras com fundo branco
 
 nod_coords = {1:(-1,-1), 2:(1,-1), 3:(1,1), 4:(-1,1)}   # Xi-Eta table 4Q (var global)
 
@@ -134,6 +135,18 @@ class fem2DHeaTransfer():
         # 4) Resolver o problema
         self.T = spsolve(Kglobal, fglobal)
 
+        # Calcular o fluxo de calor em cada ponto: q = -k*DT = -k*DN*Te = -K*Be*Te
+        self.flux = []
+        
+        for elmt in self.elements:
+            Te = []
+            for id in elmt.enodes:
+                Te.append(self.T[id])
+            T = np.array(Te, dtype='float').flatten()
+            q = - elmt.props * np.matmul(elmt.b_matrix, T)
+            self.flux.append(q)
+
+
     def plot(self):
         if self.method == 'tri':
             plt.figure()
@@ -149,6 +162,27 @@ class fem2DHeaTransfer():
             plt.axis('equal')
             plt.title('Temperatura')
 
+            x = np.zeros((self.nelements,1), dtype='float')
+            y = x.copy()
+            u = x.copy()
+            v = x.copy()
+            L = x.copy()
+            for k,elmt in enumerate(self.elements):
+                x[k], y[k] = elmt.centroid[0], elmt.centroid[1]
+            
+            for k,q_vec in enumerate(self.flux):
+                u[k], v[k] = q_vec[0], q_vec[1]
+                L[k] = np.linalg.norm([u[k], v[k]])
+     
+            plt.figure()
+            plt.quiver(x, y, u, v, L, pivot='mid', cmap=cm.plasma, 
+                        headwidth=2.0, headlength=4, headaxislength=4)
+            plt.xlabel('x')
+            plt.ylabel('y')
+            plt.axis('equal')
+            plt.colorbar(format='%.3f')
+            plt.title('Fluxo de Calor')
+            
             plt.show()
         if self.method == 'quad':
             # remover o ponto do meio antes...
@@ -183,16 +217,17 @@ class HT3():
         B[1][1] = x[0] - x[2]
         B[1][2] = x[1] - x[0]
 
-        Ae = 0.5*(x[0]*y[1] + y[0]*x[2] + x[1]*y[2] - x[2]*y[1] - x[0]*y[2] - x[1]*y[0])
+        A = 0.5*(x[0]*y[1] + y[0]*x[2] + x[1]*y[2] - x[2]*y[1] - x[0]*y[2] - x[1]*y[0])
 
-        B = (1.0/(2*Ae)) * B # Be, pg 160, eq 7.20
+        B = (1.0/(2*A)) * B # Be, pg 160, eq 7.20
 
-        K = self.props * np.matmul(B.transpose(), B) * Ae
+        K = self.props * np.matmul(B.transpose(), B) * A
 
         # formulas no Jacob, pg 155 e 156, 160
 
-        self.area = Ae
-        self.centroid = [np.mean(x), np.mean(y)]
+        self.area = A
+        self.b_matrix = B
+        self.centroid = np.array([np.mean(x), np.mean(y)])
 
         ind_rows = [self.enodes[0], self.enodes[0], self.enodes[0], self.enodes[1], self.enodes[1], self.enodes[2]]
         ind_cols = [self.enodes[0], self.enodes[1], self.enodes[2], self.enodes[1], self.enodes[2], self.enodes[2]]
@@ -229,7 +264,8 @@ class HT4():
         A2 = 0.5*(x[0]*y[3] + y[0]*x[2] + x[3]*y[2] - x[2]*y[3] - x[0]*y[2] - x[3]*y[0])
 
         self.area = A1 + A2 # area dos dois triangulos definidos pelo quadrilatero
-        self.centroid = [np.mean(x), np.mean(y)]
+        # self.b_matrix = Bint # nao eh essa matrix...
+        self.centroid = np.array([np.mean(x), np.mean(y)])
         
         ind_rows = [self.enodes[0], self.enodes[0], self.enodes[0], self.enodes[0], 
                     self.enodes[1], self.enodes[1], self.enodes[1], self.enodes[2], 
@@ -248,7 +284,7 @@ class HT4():
 
 ## Main Code ##
 
-met = 'quad'   # tri ou quad
+met = 'tri'   # tri ou quad
 problem = fem2DHeaTransfer(met)
 if met == 'tri':
     mesh = meshio.read('./util/L2/ex1_mesh1_tri.msh')
