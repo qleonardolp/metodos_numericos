@@ -15,7 +15,7 @@ from scipy import sparse
 from scipy.sparse.linalg import spsolve
 from numpy.polynomial.legendre import leggauss
 
-plt.style.use('dark_background') # comentar essa linha para ter as figuras com fundo branco
+#plt.style.use('dark_background') # comentar essa linha para ter as figuras com fundo branco
 
 nod_coords = {1:(-1,-1), 2:(1,-1), 3:(1,1), 4:(-1,1)}   # Xi-Eta table 4Q (var global)
 
@@ -175,8 +175,9 @@ class fem2DHeaTransfer():
                 L[k] = np.linalg.norm([u[k], v[k]])
      
             plt.figure()
-            plt.quiver(x, y, u, v, L, pivot='mid', cmap=cm.plasma, 
-                        headwidth=2.0, headlength=4, headaxislength=4)
+            clrmp = cm.cool
+            plt.quiver(x, y, u, v, L, pivot='mid', cmap=clrmp, 
+                        headwidth=4.0, headlength=4, headaxislength=4)
             plt.xlabel('x')
             plt.ylabel('y')
             plt.axis('equal')
