@@ -22,7 +22,7 @@ class fem1DHTTransient():
         self.nelements = 0
         self.temp_begin = temp_init
         self.end_time   = end_time
-        self.num_steps = 300
+        self.num_steps = 150
         self.time = np.linspace(0.0, self.end_time, self.num_steps)
 
     def createNodes(self, coords):
@@ -105,7 +105,7 @@ class fem1DHTTransient():
         Tp = np.zeros((self.num_steps, self.nnodes))
         Tp[0,:] = self.temp_begin # condicao de temperatura inicial
 
-        timestep_1 = self.num_steps # inverso de Delta_t
+        timestep_1 = self.num_steps/(self.end_time - 0.0) # inverso de Delta_t
 
         #Metodo Implicito
         Ak1 = (timestep_1*Mglobal + Kglobal).toarray() # precisa converter para usar inv
@@ -115,13 +115,14 @@ class fem1DHTTransient():
         for k, t in enumerate (self.time[:-1]):
             # ajustando o vetor fglobal de acordo com BC de Dirichlet
             for nd in self.bcs_nodes:
-                Ar = 0.10 # ajustar isso para usar area de cada elemento
-                if (nd[1] == 1) and (nd[3] > 0) and (t <= nd[3]):
-                    fglobal[nd[0]] = Ar*nd[2]
-                if (nd[1] == 1) and (nd[3] > 0) and (t > nd[3]):
-                    fglobal[nd[0]] = 0
-                if (nd[1] == 1) and (nd[3] == -1):
-                    fglobal[nd[0]] = Ar*nd[2]
+                Ar = 1.00 # ajustar isso para usar area de cada elemento
+                if(nd[1] == 1): #BC de Dirichlet
+                    if (nd[3] > 0) and (t <= nd[3]):
+                        fglobal[nd[0]] = Ar*nd[2]
+                    if (nd[3] > 0) and (t > nd[3]):
+                        fglobal[nd[0]] = 0
+                    if (nd[3] == -1):
+                        fglobal[nd[0]] = Ar*nd[2]
 
             Tp[k+1,:] = np.matmul(Ak,Tp[k,:]) + np.matmul(Ak1inv, fglobal)
 
@@ -192,7 +193,7 @@ t_end = 30.00   #[s]
 #alpha = 1/(1.00*100) # k/rho*c [m^2/s]
 condutividade_termica = 1.000            #[W/(m^2 K)]
 cap_termica_vol = 1.00*100.00   #[J/(m^3 K)]
-A = 0.100 # area da secao transversal
+A = 1.00 # area da secao transversal
 nnodes = 16
 # util para o caso 2D:
 coords = np.zeros((nnodes, 2)) 
