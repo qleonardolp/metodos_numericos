@@ -4,15 +4,13 @@
 #// github/bitbucket qleonardolp	                 ///
 #///////////////////////////////////////////////////////
 
-## Transferencia de Calor em solidos (transiente)
+## FEM: Transferencia de Calor em solidos (transiente)
 
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import cm
 from scipy import sparse
 from scipy.sparse.linalg import spsolve
-
-#plt.style.use('dark_background') # comentar essa linha para ter as figuras com fundo branco
 
 ## Class Definition
 
@@ -24,6 +22,8 @@ class fem1DHTTransient():
         self.nelements = 0
         self.temp_begin = temp_init
         self.end_time   = end_time
+        self.num_steps = 300
+        self.time = np.linspace(0.0, self.end_time, self.num_steps)
 
     def createNodes(self, coords):
         self.nodes = coords
@@ -51,24 +51,42 @@ class fem1DHTTransient():
 
     def solve(self):
 
-        rows = []
-        cols = []
-        values = []
+        rowsk = []
+        colsk = []
+        valuesk = []
+        rowsm = []
+        colsm = []
+        valuesm = []
+        area = []
 
         for element in self.elements:
             r, c, v = element.Ke(self.nodes)
-            rows.append(r)
-            cols.append(c)
-            values.append(v)
+            rowsk.append(r)
+            colsk.append(c)
+            valuesk.append(v)
+            r, c, v = element.Me(self.nodes)
+            rowsm.append(r)
+            colsm.append(c)
+            valuesm.append(v)
+            area.append(element.A)
 
-        rows = np.array(rows, dtype='int').flatten()
-        cols = np.array(cols, dtype='int').flatten()
-        values = np.array(values, dtype='float').flatten()
+        rowsk = np.array(rowsk, dtype='int').flatten()
+        colsk = np.array(colsk, dtype='int').flatten()
+        valuesk = np.array(valuesk, dtype='float').flatten()
+        rowsm = np.array(rowsm, dtype='int').flatten()
+        colsm = np.array(colsm, dtype='int').flatten()
+        valuesm = np.array(valuesm, dtype='float').flatten()
 
-        Kglobal = sparse.csr_matrix((values, (rows, cols)), shape=((self.nnodes, self.nnodes)))
+        # Montagem da matriz global K
+        Kglobal = sparse.csr_matrix((valuesk, (rowsk, colsk)), shape=((self.nnodes, self.nnodes)))
         Kglobal = Kglobal + Kglobal.T - sparse.diags(Kglobal.diagonal(), dtype='float')
+        # Montagem da matriz global M
+        Mglobal = sparse.csr_matrix((valuesm, (rowsm, colsm)), shape=((self.nnodes, self.nnodes)))
+        Mglobal = Mglobal + Mglobal.T - sparse.diags(Mglobal.diagonal(), dtype='float')
 
         self.Kglobal = Kglobal
+        self.Mglobal = Mglobal
+
         # 1) Montagem do vetor fglobal
         fglobal = np.zeros(self.nnodes)
 
@@ -77,23 +95,53 @@ class fem1DHTTransient():
         w = 1e20
         # usado para BCs de Dirichlet
         for nd in self.bcs_nodes:
-            if nd[1] == 0:
+            if nd[1] == 0: # B.C. de Dirichlet
                 fglobal[nd[0]] = nd[2] * w
                 Kglobal[nd[0], nd[0]] += w
         
         self.Kglobal = Kglobal
         self.fglobal = fglobal
-        # 4) Resolver o problema
-        self.T = spsolve(Kglobal, fglobal)
+
+        Tp = np.zeros((self.num_steps, self.nnodes))
+        Tp[0,:] = self.temp_begin # condicao de temperatura inicial
+
+        timestep_1 = self.num_steps # inverso de Delta_t
+
+        #Metodo Implicito
+        Ak1 = (timestep_1*Mglobal + Kglobal).toarray() # precisa converter para usar inv
+        Ak1inv = np.linalg.inv(Ak1)
+        Ak = np.matmul(Ak1inv, timestep_1*Mglobal.toarray()) # precisa converter para usar inv
+
+        for k, t in enumerate (self.time[:-1]):
+            # ajustando o vetor fglobal de acordo com BC de Dirichlet
+            for nd in self.bcs_nodes:
+                Ar = 0.10 # ajustar isso para usar area de cada elemento
+                if (nd[1] == 1) and (nd[3] > 0) and (t <= nd[3]):
+                    fglobal[nd[0]] = Ar*nd[2]
+                if (nd[1] == 1) and (nd[3] > 0) and (t > nd[3]):
+                    fglobal[nd[0]] = 0
+                if (nd[1] == 1) and (nd[3] == -1):
+                    fglobal[nd[0]] = Ar*nd[2]
+
+            Tp[k+1,:] = np.matmul(Ak,Tp[k,:]) + np.matmul(Ak1inv, fglobal)
+
+        self.T = Tp
 
 
     def plot(self):
-        axs = plt.figure().add_subplot(projection='3d')
-        axs.plot_trisurf(self.nodes[:,0], self.nodes[:,1], self.T, cmap=cm.viridis, linewidth=4)
-        axs.set_xlabel('x')
-        axs.set_ylabel('y')
-        axs.set_zlabel('Temperatura')
+        fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
+        # Plot the surface.
+        eixo_x, eixo_t = np.meshgrid(self.nodes[:,0], self.time)
+        surf = ax.plot_surface(eixo_x, eixo_t, self.T,
+                                cmap=cm.plasma, linewidth=0, antialiased=False)
+        # A StrMethodFormatter is used automatically
+        ax.zaxis.set_major_formatter('{x:.02f}')
+        plt.xlabel('x (m)')
+        plt.ylabel('tempo (s)')
+        # Add a color bar which maps values to colors.
+        fig.colorbar(surf, shrink=0.5, aspect=5, format='%.3f', label='Temperatura (°C)')
         plt.show()
+
 
 class HT2():
     def __init__(self, nodes, k, rhocp, area):
@@ -123,9 +171,9 @@ class HT2():
         x = coords[self.enodes, 0]
         self.L = abs(x[1] - x[0])
 
-        Ke_11 = (self.rhocp * self.A / self.L) 
-        Ke_12 = -Ke_11
-        Ke_22 =  Ke_11
+        Ke_11 = 2/6*(self.rhocp * self.L) # Jacob Fish, pg 99
+        Ke_12 = Ke_11/2
+        Ke_22 = Ke_11
         
         # Ke = [[(n1, n1), (n1, n2)], [(n2, n1), (n2,n2)]]
         n1 = self.enodes[0]
@@ -145,7 +193,7 @@ t_end = 30.00   #[s]
 condutividade_termica = 1.000            #[W/(m^2 K)]
 cap_termica_vol = 1.00*100.00   #[J/(m^3 K)]
 A = 0.100 # area da secao transversal
-nnodes = 8
+nnodes = 16
 # util para o caso 2D:
 coords = np.zeros((nnodes, 2)) 
 coords[:,0] = np.linspace(0.0, L_barra, nnodes)
