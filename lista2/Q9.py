@@ -170,8 +170,7 @@ class fem2DHeaTransfer():
                 L[k] = np.linalg.norm([u[k], v[k]])
      
             plt.figure()
-            clrmp = cm.cool
-            plt.quiver(x, y, u, v, L, pivot='mid', cmap=clrmp, 
+            plt.quiver(x, y, u, v, L, pivot='mid', cmap=cm.cool, 
                         headwidth=4.0, headlength=4, headaxislength=4)
             plt.xlabel('x')
             plt.ylabel('y')
@@ -251,7 +250,7 @@ class HT4():
                 Je_inv = np.linalg.inv( jac_de_xieta(x, y, q, n) )
                 G = np.array([dForma_dxi(n), dForma_deta(q)])
                 B = np.matmul(Je_inv, G)
-                Bint += Wx[i]*We[j]*(2)* np.matmul(B.transpose(), B)
+                Bint += Wx[i]*We[j]*(2)* np.matmul(B.transpose(), B)    # (2) eh o Jacobiano das coordenadas fisicas
 
         K = self.props * Bint
 
@@ -289,12 +288,11 @@ if met == 'quad':
 coords = np.array(mesh.points[:,0:2])
 connectivities = mesh.cells[-1].data
 
-# Implementacao do elemento Q4
-# connectivities = ([0, 1, 2, 3])
-
 # Geometry and mesh
 problem.createNodes(coords) # array com coords dos nos
-problem.createElements(connectivities) # array dos elementos, em que cada elemento contem os ids dos seus nos, mas o objeto element nao contem a info das coords
+problem.createElements(connectivities) # array dos elementos, 
+# em que cada elemento contem os ids dos seus nos, 
+# mas o objeto element nao contem a info das coords
 
 # Nao foi definido o material, usarei o mesmo da Q8:
 alpha = 1/(1.00*100) # k/rho*c
