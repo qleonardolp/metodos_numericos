@@ -1,221 +1,177 @@
+#///////////////////////////////////////////////////////
+#// Leonardo Felipe L. S. dos Santos, 2021           ///
+#// leonardo.felipe.santos@usp.br	                 ///
+#// github/bitbucket qleonardolp	                 ///
+#///////////////////////////////////////////////////////
+
+## Transferencia de Calor em solidos (transiente)
+
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib import cm
+from scipy import sparse
+from scipy.sparse.linalg import spsolve
 
-# abstracao em OO para os nós e elementos...
-# encapsulamento pdoe ser feito com "decorators"
+#plt.style.use('dark_background') # comentar essa linha para ter as figuras com fundo branco
 
-class Node:
-    #construction method
-    def __init__(self, coords, label):
-        self.coords = coords
-        self.label = int(label)
-    # veja que é possível definir um membro da classe a partir da funcao construtora
+## Class Definition
 
-class Element:
-    #construction method
-    def __init__(self, nos_locais, props, material, nos_globais):
-        self.nodes = []
-        for nd in nos_locais:
-            self.nodes.append(nos_globais[nd])
-
-        # usando props/material como um dicionário:
-        self.material = material
-        self.heat_gen = props['s']
-        self.area = props['A']
-
-        # usando o 1° e último provavelmente para ter 
-        # o maior comprimento do elemento
-        coords0 = self.nodes[0].coords
-        coords1 = self.nodes[-1].coords
-        self.length = np.linalg.norm(np.array(coords1) 
-                                    -np.array(coords0))
-
-    # Element Matrix
-    def create_element_matrix(self):
-        num_nd = len(self.nodes)
-        
-        if (num_nd == 2):
-            n1 = self.nodes[0].label
-            n2 = self.nodes[1].label
-            idx_row = [n1, n1, n2, n2]
-            idx_col = [n1, n2, n1, n2]
-            k = self.material['thermal_cond']
-            A = self.area
-            h = self.length
-            elem_mtx = np.array([[1.0, -1.0], [-1.0, 1.0]]) * (h*A/L)
-
-        if (num_nd == 3):
-            n1 = self.nodes[0].label
-            n2 = self.nodes[1].label
-            n3 = self.nodes[2].label
-            idx_row = [n1, n1, n1, n2, n2, n2, n3, n3, n3]
-            idx_col = [n1, n2, n3, n1, n2, n3, n1, n2, n3]
-            k = self.material['thermal_cond']
-            A = self.area
-            h = self.length
-            elem_mtx = np.array([[7*A*k/(3*h), -8*A*k/(3*h), A*k/(3*h)], 
-                              [-8*A*k/(3*h), 16*A*k/(3*h), -8*A*k/(3*h)], 
-                              [A*k/(3*h), -8*A*k/(3*h), 7*A*k/(3*h)]])
-
-        self.ke = elem_mtx
-        return elem_mtx
-
-    # Element 'Force' vector
-    def create_element_vector(self):
-        num_nd = len(self.nodes)
-        if (num_nd == 2):
-            n1 = self.nodes[0].label
-            n2 = self.nodes[1].label
-            idx_row = [n1, n2]
-            s = self.heat_gen
-            A = self.area
-            h = self.length
-            elem_vec = np.array([1.0, 1.0]) * (s*h*A/2.0)
-
-        if (num_nd == 3):
-            n1 = self.nodes[0].label
-            n2 = self.nodes[1].label
-            n3 = self.nodes[2].label
-            idx_row = [n1, n2, n3]
-            s = self.heat_gen
-            A = self.area
-            h = self.length
-            elem_vec = np.array([A*h*s/6, 2*A*h*s/3, A*h*s/6])
-
-        self.fe = elem_vec
-        return elem_vec
-        
-    # printing method
-    def __str__(self):
-        string = 'N° de nós:' + str(len(self.nodes)) + '\n'
-        for k, nd in enumerate(self.nodes):
-            string += 'Nó ' + str(k+1) + ": " + str(nd.coords) + '\n'
-        string += 'Comprimento ' + str(self.length)
-        return string
-
-
-class HeatTransfer1D:
-    def __init__(self):
+class fem1DHTTransient():
+    def __init__(self, temp_init, end_time):
         self.nodes = []
         self.elements = []
-        self.bcs = []
+        self.nnodes = 0
+        self.nelements = 0
+        self.temp_begin = temp_init
+        self.end_time   = end_time
 
-    def create_nodes(self, coords):
-        for k, coord in enumerate(coords):
-            new_nd = Node(coord, k)
-            self.nodes.append(new_nd)
+    def createNodes(self, coords):
+        self.nodes = coords
+        self.nnodes = len(self.nodes)
 
-    def create_elements(self, connectivities, properties, materials):
-        for connection in connectivities:
-            new_elem = Element(connection, properties, materials, self.nodes)
-            self.elements.append(new_elem)
+    def createElements(self, connectivities, condutividade, rhocp, area):
+        self.connectivities = connectivities
+        for k,item in enumerate(connectivities):
+            element = HT2(item, condutividade[k], rhocp[k], area[k])
+            self.elements.append(element)
 
-    def create_boundary_conditions(self, bc):
-        self.bcs.append(bc)
-        
-    def assembly_matrices(self):
-        # Matriz K
-        num_nd = len(self.nodes)
-        K = np.zeros((num_nd, num_nd))
-        f = np.zeros(num_nd)
+        self.nelements = len(self.elements)
+
+    def createBoundaryConds(self, conditions):
+        self.bcs_nodes = [] # id/ tipo/ valor/ tempo
+        eps = 0.000001
+        for i,nd in enumerate(self.nodes):
+            if nd[0] < eps: #(x=0)
+                typ, val, time = conditions['E']
+                self.bcs_nodes.append((i, typ, val, time))
+            if nd[0] > (1-eps): #(x=1)
+                typ, val, time = conditions['D']
+                self.bcs_nodes.append((i, typ, val, time))
+
+
+    def solve(self):
+
+        rows = []
+        cols = []
+        values = []
 
         for element in self.elements:
-            K_e = element.create_element_matrix()
-            f_e = element.create_element_vector()
+            r, c, v = element.Ke(self.nodes)
+            rows.append(r)
+            cols.append(c)
+            values.append(v)
 
-            num_nd = len(element.nodes)
-            if (num_nd == 2):
-                pos1 = element.nodes[0].label
-                pos2 = element.nodes[1].label
+        rows = np.array(rows, dtype='int').flatten()
+        cols = np.array(cols, dtype='int').flatten()
+        values = np.array(values, dtype='float').flatten()
 
-                K[pos1, pos1] += K_e[0,0]
-                K[pos1, pos2] += K_e[0,1]
-                K[pos2, pos1] += K_e[1,0]
-                K[pos2, pos2] += K_e[1,1]
+        Kglobal = sparse.csr_matrix((values, (rows, cols)), shape=((self.nnodes, self.nnodes)))
+        Kglobal = Kglobal + Kglobal.T - sparse.diags(Kglobal.diagonal(), dtype='float')
 
-                f[pos1] += f_e[0]
-                f[pos2] += f_e[1]
-            if (num_nd == 3):
-                pos1 = element.nodes[0].label
-                pos2 = element.nodes[1].label
-                pos3 = element.nodes[2].label
+        self.Kglobal = Kglobal
+        # 1) Montagem do vetor fglobal
+        fglobal = np.zeros(self.nnodes)
 
-                K[pos1, pos1] += K_e[0,0]
-                K[pos1, pos2] += K_e[0,1]
-                K[pos1, pos3] += K_e[0,2]
-
-                K[pos2, pos1] += K_e[1,0]
-                K[pos2, pos2] += K_e[1,1]
-                K[pos2, pos3] += K_e[1,2]
-
-                K[pos3, pos1] += K_e[2,0]
-                K[pos3, pos2] += K_e[2,1]
-                K[pos3, pos3] += K_e[2,2]
-
-                f[pos1] += f_e[0]
-                f[pos2] += f_e[1]
-                f[pos3] += f_e[2]
-
-        self.K = K
-        self.f = f
-
-    # Method to solve the problem
-    def solve(self):
-        for bc in self.bcs:
-            # Penalization
-            if (bc['type'] == 'T'):
-                self.K[bc['node'], bc['node']] += 1e20
-                self.f[bc['node']] = 1e20 * bc['value']
-
-        T = np.linalg.solve(self.K, self.f)
-        self.T = T
-        return T
-    
+        # 2) Aplicação das BCs no vetor fglobal
+        # 3) Aplicar as condições de contorno na matriz Kglobal
+        w = 1e20
+        # usado para BCs de Dirichlet
+        for nd in self.bcs_nodes:
+            if nd[1] == 0:
+                fglobal[nd[0]] = nd[2] * w
+                Kglobal[nd[0], nd[0]] += w
+        
+        self.Kglobal = Kglobal
+        self.fglobal = fglobal
+        # 4) Resolver o problema
+        self.T = spsolve(Kglobal, fglobal)
 
 
+    def plot(self):
+        axs = plt.figure().add_subplot(projection='3d')
+        axs.plot_trisurf(self.nodes[:,0], self.nodes[:,1], self.T, cmap=cm.viridis, linewidth=4)
+        axs.set_xlabel('x')
+        axs.set_ylabel('y')
+        axs.set_zlabel('Temperatura')
+        plt.show()
 
-## "Main code"
-L = 1.0
-N = 5
-x = np.linspace(0, L, N)
-y = np.zeros(N)
-z = np.zeros(N)
-Ti = 20
-Tf = 12
+class HT2():
+    def __init__(self, nodes, k, rhocp, area):
+        self.enodes = nodes
+        self.k = k
+        self.rhocp = rhocp
+        self.A = area
 
-global_coords = np.column_stack((x, y, z))
+    def Ke(self, coords): # constroi a matrix K do elemento
+        x = coords[self.enodes, 0]
+        self.L = abs(x[1] - x[0])
 
-# elementos quadraticos
-Ne = int((N+1)/3)
-connectivities = np.zeros((Ne, 3), dtype=int)
-connectivities[:,0] = np.arange(0, N-1, 2)
-connectivities[:,1] = connectivities[:,0] + 1
-connectivities[:,2] = connectivities[:,0] + 2
-print(connectivities)
+        Ke_11 = (self.k * self.A / self.L) 
+        Ke_12 = -Ke_11
+        Ke_22 =  Ke_11
+        
+        # Ke = [[(n1, n1), (n1, n2)], [(n2, n1), (n2,n2)]]
+        n1 = self.enodes[0]
+        n2 = self.enodes[1]
+        ind_rows = [n1, n1, n2]
+        ind_cols = [n1, n2, n2]
+        values = [Ke_11, Ke_12, Ke_22]
+        
+        return ind_rows, ind_cols, values
 
-properties = {'s': 2.00, 'A': 0.3} # dicionário, "key-value pairs"
-material = {'density': 1.00, 'specific_heat': 1.00, 'thermal_cond': 0.1}
+    def Me(self, coords):
+        x = coords[self.enodes, 0]
+        self.L = abs(x[1] - x[0])
 
-problem = HeatTransfer1D()
-problem.create_nodes(global_coords)
-problem.create_elements(connectivities, properties, material)
-problem.assembly_matrices()
-problem.create_boundary_conditions({'type':'T', 'node':0, 'value':Ti})
-problem.create_boundary_conditions({'type':'T', 'node':N-1, 'value':Tf})
-T = problem.solve()
+        Ke_11 = (self.rhocp * self.A / self.L) 
+        Ke_12 = -Ke_11
+        Ke_22 =  Ke_11
+        
+        # Ke = [[(n1, n1), (n1, n2)], [(n2, n1), (n2,n2)]]
+        n1 = self.enodes[0]
+        n2 = self.enodes[1]
+        ind_rows = [n1, n1, n2]
+        ind_cols = [n1, n2, n2]
+        values = [Ke_11, Ke_12, Ke_22]
+        
+        return ind_rows, ind_cols, values
 
-# Reference solution
-s = properties['s']
-k = material['thermal_cond']
-xref = np.linspace(0, L, 200)
-Tref =  -s*xref**2.0/(2*k) + ((Tf - Ti)/L + s*L/(2*k))*xref + Ti
+## Main Code ##
 
-# Compare FEM solution with the reference
-plt.close('all')
-plt.plot(xref, Tref, 'k', label='Reference')
-plt.plot(x, T, '--sb', label='FEM result')
-plt.legend()
-plt.xlabel('x')
-plt.ylabel('Temperature')
+Ti = 1.000      #[°C]
+L_barra = 1.000 #[m]
+t_end = 30.00   #[s]
+#alpha = 1/(1.00*100) # k/rho*c [m^2/s]
+condutividade_termica = 1.000            #[W/(m^2 K)]
+cap_termica_vol = 1.00*100.00   #[J/(m^3 K)]
+A = 0.100 # area da secao transversal
+nnodes = 8
+# util para o caso 2D:
+coords = np.zeros((nnodes, 2)) 
+coords[:,0] = np.linspace(0.0, L_barra, nnodes)
+# 2 nos por elemento
+connectivities = np.zeros((nnodes - 1, 2), dtype='int')
+connectivities[:,0] = np.arange(0, nnodes-1)
+connectivities[:,1] = np.arange(1, nnodes)
 
-plt.show()
+cond = condutividade_termica*np.ones((nnodes - 1, 1))
+rhocp = cap_termica_vol*np.ones((nnodes - 1, 1))
+areas = A*np.ones((nnodes - 1, 1))
+
+problem = fem1DHTTransient(Ti, t_end)
+problem.createNodes(coords) # array com coords dos nos
+problem.createElements(connectivities, cond, rhocp, areas) 
+# array dos elementos, em que cada elemento contem os ids dos seus nos, mas o objeto element nao contem a info das coords
+
+# Boundary conditions
+qe  = 1.00
+qd  = 0.00
+# tipos: 0: Dirichlet / 1: Neumann 
+# local: E: Esquerda / D: Direita
+# tempo: -1: qql q seja t / >0: tempo ATÉ o qual a condicao eh valida
+bcs = {'E':(1,qe,10), 'D':(1,qd,-1)}
+problem.createBoundaryConds(bcs)
+
+problem.solve()
+
+problem.plot()
