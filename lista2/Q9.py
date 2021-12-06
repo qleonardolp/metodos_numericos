@@ -72,31 +72,26 @@ class fem2DHeaTransfer():
     def createBoundaryConds(self, conditions, des_nodes, des_values):
         self.bcs_nodes = [] # id/ tipo/ valor
         eps = 0.000001
-        aux = True
-        if aux:
-            for i,nd in enumerate(self.nodes):
-                if nd[0] < eps: #(x=0)
-                    typ, val = conditions['E']
-                    self.bcs_nodes.append((i, typ, val))
-                if nd[0] > (1-eps): #(x=1)
-                    typ, val = conditions['D']
-                    self.bcs_nodes.append((i, typ, val))
-                if nd[1] < eps: #(y=0)
-                    typ, val = conditions['I']
-                    self.bcs_nodes.append((i, typ, val))
-                if nd[1] > (1-eps): #(y=1)
-                    typ, val = conditions['S']
-                    self.bcs_nodes.append((i, typ, val))
-            # pontos nos vertices satisfazem as condicoes 2x
-            # remocao por pop considera a mudanca de id da remocao anterior...
-            self.bcs_nodes.pop(1)
-            self.bcs_nodes.pop(2)
-            self.bcs_nodes.pop(3)
-            self.bcs_nodes.pop(4)
-            self.bcs_nodes.append((4, 0, 10.0)) # bug?
-        else: # opcao para usar o modo original de BCs
-            for k,nd in enumerate(des_nodes):
-                self.bcs_nodes.append((nd, 0, des_values[k]))
+        for i,nd in enumerate(self.nodes):
+            if nd[0] < eps: #(x=0)
+                typ, val = conditions['E']
+                self.bcs_nodes.append((i, typ, val))
+            if nd[0] > (1-eps): #(x=1)
+                typ, val = conditions['D']
+                self.bcs_nodes.append((i, typ, val))
+            if nd[1] < eps: #(y=0)
+                typ, val = conditions['I']
+                self.bcs_nodes.append((i, typ, val))
+            if nd[1] > (1-eps): #(y=1)
+                typ, val = conditions['S']
+                self.bcs_nodes.append((i, typ, val))
+        # pontos nos vertices satisfazem as condicoes 2x
+        # remocao por pop considera a mudanca de id da remocao anterior...
+        self.bcs_nodes.pop(1)
+        self.bcs_nodes.pop(2)
+        self.bcs_nodes.pop(3)
+        self.bcs_nodes.pop(4)
+        self.bcs_nodes.append((4, 0, 10.0)) # bug?
 
     def solve(self):
 
