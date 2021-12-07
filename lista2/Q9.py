@@ -10,7 +10,6 @@ import meshio
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import cm
-from numpy.lib.function_base import append
 from scipy import sparse
 from scipy.sparse.linalg import spsolve
 from numpy.polynomial.legendre import leggauss
