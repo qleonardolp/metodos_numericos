@@ -14,7 +14,7 @@ from scipy import sparse
 from scipy.sparse.linalg import spsolve
 from numpy.polynomial.legendre import leggauss
 
-#plt.style.use('dark_background') # comentar essa linha para ter as figuras com fundo branco
+plt.style.use('dark_background') # comentar essa linha para ter as figuras com fundo branco
 
 nod_coords = {1:(-1,-1), 2:(1,-1), 3:(1,1), 4:(-1,1)}   # Xi-Eta table 4Q (var global)
 
@@ -226,6 +226,10 @@ class HT3():
         ind_rows = [self.enodes[0], self.enodes[0], self.enodes[0], self.enodes[1], self.enodes[1], self.enodes[2]]
         ind_cols = [self.enodes[0], self.enodes[1], self.enodes[2], self.enodes[1], self.enodes[2], self.enodes[2]]
         values =   [K[0,0], K[0,1], K[0,2], K[1,1], K[1,2], K[2,2]]
+
+        # n11 n12 n13
+        #     n22 n23
+        #         n33
 
         return ind_rows, ind_cols, values
 
