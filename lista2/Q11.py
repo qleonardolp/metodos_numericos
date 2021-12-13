@@ -4,7 +4,7 @@
 #// github/bitbucket qleonardolp	                 ///
 #///////////////////////////////////////////////////////
 
-## Transferencia de Calor em solidos (estacionario)
+## Equilibrio de Solidos (chapas)
 
 import meshio
 import numpy as np
@@ -92,6 +92,25 @@ class fem2DHeaTransfer():
         # 1) Montagem do vetor fglobal
         fglobal = np.zeros(self.nnodes*2)
 
+        deleteId = []
+        deleteId_forward = []
+        for nd in self.bcs_nodes:
+            if nd[1] == 0:
+                deleteId.append(2*nd[0])
+                deleteId_forward.append(2*nd[0]+1)
+            if nd[1] == 1: # Neumann
+                fglobal[2*nd[0]]   = nd[2][0] #(Fx)
+                fglobal[2*nd[0]+1] = nd[2][1] #(Fy)
+
+        self.f = np.delete(fglobal, deleteId + deleteId_forward, 0)
+
+        K = Kglobal.toarray()
+        K = np.delete(K, deleteId + deleteId_forward, 0) # deleta linhas
+        K = np.delete(K, deleteId + deleteId_forward, 1) # deleta colunas
+        self.K = K
+
+        self.Ured = spsolve(sparse.csr_matrix(self.K), self.f)
+
         # 2) Aplicação das BCs no vetor fglobal
         # 3) Aplicar as condições de contorno na matriz Kglobal
         w = 1e20
@@ -99,11 +118,15 @@ class fem2DHeaTransfer():
         for nd in self.bcs_nodes:
             if nd[1] == 0: # Dirichilet
                 if nd[2] == 1: # em u
-                    fglobal[2*nd[0]] = 0
-                    Kglobal[2*nd[0], 2*nd[0]] += w
+                    i = 2*nd[0]
+                    np.delete(fglobal,i)
+                    sparse.vstack([Kglobal[:i, :], Kglobal[i:, :]])
+                    sparse.hstack([Kglobal[:, :i], Kglobal[:, i:]])
                 if nd[2] == 2: # em v
-                    fglobal[2*nd[0]+1] = 0
-                    Kglobal[2*nd[0]+1, 2*nd[0]+1] += w
+                    i = 2*nd[0] + 1
+                    np.delete(fglobal,i)
+                    sparse.vstack([Kglobal[:i, :], Kglobal[i:, :]])
+                    sparse.hstack([Kglobal[:, :i], Kglobal[:, i:]])
             
             if nd[1] == 1: # Neumann
                 fglobal[2*nd[0]]   = nd[2][0] #(Fx)
@@ -112,7 +135,7 @@ class fem2DHeaTransfer():
         self.Kglobal = Kglobal
         self.fglobal = fglobal
         # 4) Resolver o problema
-        self.T = spsolve(Kglobal, fglobal)
+        self.U = spsolve(Kglobal, fglobal)
 
 
     def plot(self):
@@ -258,6 +281,7 @@ Fy = 4000 #[N]
 # restricao geometrica: 1: (dx = 0), 2: (dy = 0)
 # E: Esq, D: Dir, Sup: Superior, Inf: Inferior
 bcs = {'E':(0,1), 'D':(-1,0), 'S':(-1,0), 'I':(0,2)}
+# Forca aplicada em x,y = 1,1 
 problem.createBoundaryConds(bcs, [2], [(Fx, Fy)])
 
 problem.solve()
