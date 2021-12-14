@@ -111,24 +111,45 @@ class femTrelica():
             else:
                 self.U[i] = self.Ured[i-k]
         #enfor
+
+        # 6) Obtendo forcas de reacao:
+        self.Reacoes = []
+        self.F = np.matmul(self.Kglobal.toarray(), self.U)
+        for nd in self.bcs_nodes:
+            if nd[1] == 1: # Forca aplicada
+                self.Reacoes.append( self.F[2*nd[0]] )
+                self.Reacoes.append( self.F[2*nd[0]+1] )
+        print('Forças de Reação:')
+        print(self.Reacoes) # rever sinal!
+
     #endmethod
 
 
 
     def plot(self):
+        Uxy = self.U
+        scale = 2e2
+        normas = np.zeros((self.nnodes,1))
+        u = Uxy[::2]
+        v = Uxy[1::2]
+        for i in range(self.nnodes):
+            normas[i] = np.linalg.norm([u[i], v[i]])
+
         plt.figure()
         plt.triplot(self.nodes[:,0], self.nodes[:,1], '-b', linewidth=0.6)
+        masks = [False, False, True, False, False, True, False, False, True] # para esconder triangulos indesejados
+        plt.triplot(self.nodes[:,0]+scale*u, self.nodes[:,1]+scale*v,'-r', linewidth=0.6, mask=masks)
         plt.axis('equal')
 
-        Uxy = self.U
-        Uxy = Uxy/abs(Uxy.max())
+        scale = 1e6
+        Uxy = scale*Uxy
         #plt.figure()
-        plt.quiver(self.nodes[:,0], self.nodes[:,1], Uxy[::2], Uxy[1::2], Uxy[1::2], 
+        plt.quiver(self.nodes[:,0], self.nodes[:,1], Uxy[::2], Uxy[1::2], scale*normas, 
                    cmap=cm.spring, headwidth=2.0, headlength=3, headaxislength=3)
                   # use cm.winter para fundo branco
         plt.xlabel('x')
         plt.ylabel('y')
-        plt.colorbar(format='%.3E')
+        plt.colorbar(format='%.3f', label='$\mu$m')
         plt.show(block=True)
 
 
