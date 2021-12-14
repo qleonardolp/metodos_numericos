@@ -5,8 +5,6 @@
 #///////////////////////////////////////////////////////
 
 ## Equilibrio de Solidos (trelicas)
-
-import meshio
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import cm
@@ -84,57 +82,54 @@ class femTrelica():
                 fglobal[2*nd[0]]   = nd[2][0] #(Fx)
                 fglobal[2*nd[0]+1] = nd[2][1] #(Fy)
 
-        self.f = np.delete(fglobal, deleteId + deleteId_forward, 0)
+        self.Kglobal = Kglobal
+        self.fglobal = fglobal
+
+        self.fred = np.delete(fglobal, deleteId + deleteId_forward, 0)
 
         K = Kglobal.toarray()
         K = np.delete(K, deleteId + deleteId_forward, 0) # deleta linhas
         K = np.delete(K, deleteId + deleteId_forward, 1) # deleta colunas
-        self.K = K
+        self.Kred = K
 
-        self.Ured = spsolve(sparse.csr_matrix(self.K), self.f)
-
-        # 2) Aplicação das BCs no vetor fglobal
-        # 3) Aplicar as condições de contorno na matriz Kglobal
-        
-        self.Kglobal = Kglobal
-        self.fglobal = fglobal
         # 4) Resolver o problema
-        self.U = spsolve(Kglobal, fglobal)
+        self.Ured = spsolve(sparse.csr_matrix(self.Kred), self.fred)
+
+        # 5) Montando de volta o vetor global U:
+        insert_list_idx = []
+        for nd in self.bcs_nodes:
+            if nd[1] == 0: # Restricao geometrica (Dirichlet)
+                insert_list_idx.append(2*nd[0])
+                insert_list_idx.append(2*nd[0]+1)
+        insert_list_idx.sort()
+
+        self.U = np.zeros(self.nnodes*2)
+        k = 0
+        for i in range(self.nnodes*2):
+            if i == insert_list_idx[k]:
+                k = k+1
+            else:
+                self.U[i] = self.Ured[i-k]
+        #enfor
+    #endmethod
+
 
 
     def plot(self):
         plt.figure()
-        plt.triplot(self.nodes[:,0], self.nodes[:,1], self.connectivities, '-w', linewidth=0.5)
-        plt.axis('off')
+        plt.triplot(self.nodes[:,0], self.nodes[:,1], '-b', linewidth=0.6)
         plt.axis('equal')
-        plt.figure()
-        plt.tripcolor(self.nodes[:,0], self.nodes[:,1], self.connectivities, self.T, shading='gouraud')
-        plt.triplot(self.nodes[:,0], self.nodes[:,1], self.connectivities, '-w', linewidth=0.5)
-        plt.colorbar()
-        plt.axis('off')
-        plt.axis('equal')
-        plt.title('Temperatura')
-        x = np.zeros((self.nelements,1), dtype='float')
-        y = x.copy()
-        u = x.copy()
-        v = x.copy()
-        L = x.copy()
-        for k,elmt in enumerate(self.elements):
-            x[k], y[k] = elmt.centroid[0], elmt.centroid[1]
-        
-        for k,q_vec in enumerate(self.flux):
-            u[k], v[k] = q_vec[0], q_vec[1]
-            L[k] = np.linalg.norm([u[k], v[k]])
-    
-        plt.figure()
-        plt.quiver(x, y, u, v, L, pivot='mid', cmap=cm.cool, 
-                    headwidth=4.0, headlength=4, headaxislength=4)
+
+        Uxy = self.U
+        Uxy = Uxy/abs(Uxy.max())
+        #plt.figure()
+        plt.quiver(self.nodes[:,0], self.nodes[:,1], Uxy[::2], Uxy[1::2], Uxy[1::2], 
+                   cmap=cm.spring, headwidth=2.0, headlength=3, headaxislength=3)
+                  # use cm.winter para fundo branco
         plt.xlabel('x')
         plt.ylabel('y')
-        plt.axis('equal')
-        plt.colorbar(format='%.3f')
-        plt.title('Fluxo de Calor')    
-        plt.show()
+        plt.colorbar(format='%.3E')
+        plt.show(block=True)
 
 
 
@@ -190,14 +185,18 @@ class Trelica():
 ## Main Code ##
 
 problem = femTrelica()
+comprimento = 0.3 # m
 
-coords = np.arange(9)
+off_x = comprimento/2
+off_y = comprimento * np.sqrt(3)/2
+coords = np.array([[0.0,0.0],[off_x,off_y],[0.3,0.0],
+                  [off_x+0.3,off_y],[0.6,0.0],[off_x+0.6,off_y],
+                  [0.9,0.0],[off_x+0.9,off_y],[1.2,0.0]])
 connectivities = np.array([[0,1],[0,2],[1,2],[1,3],[2,3],
                            [2,4],[3,4],[3,5],[4,5],[4,6],
                            [5,6],[5,7],[6,7],[6,8],[7,8]])
 
 angulos = np.array([1, 0, 2, 0, 1, 0, 2, 0, 1, 0, 2, 0, 1, 0, 2])*(np.pi/3)
-comprimento = 0.3 # m
 
 problem.createNodes(coords) # array com coords dos nos
 problem.createElements(connectivities) # array dos elementos, 
@@ -215,8 +214,8 @@ Fn6 = -2000 #[N]
 # Condicoes de contorno: "No:(tipo,restricao)"
 # tipo 0: Dirichlet | 1: Neumann | -1: Invalida
 # restricao geometrica: 1: (dx = 0), 2: (dy = 0)
-
-bcs = {0:(0,1), 0:(0,2), 8:(0,2), 4:(1,(0,Fn4)), 6:(1,(0,Fn6))}
+# Lembrar que é zero-based: No 1 = 0, No 9 = 8 ...
+bcs = {0:(0,1), 0:(0,2), 8:(0,2), 3:(1,(0,Fn4)), 5:(1,(0,Fn6))}
 problem.createBoundaryConds(bcs)
 
 problem.solve(angulos)
