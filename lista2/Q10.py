@@ -149,7 +149,8 @@ class femTrelica():
                   # use cm.winter para fundo branco
         plt.xlabel('x')
         plt.ylabel('y')
-        plt.colorbar(format='%.3f', label='$\mu$m')
+        plt.colorbar(format='%.3f', label='Norma do vetor $u_{xy} [\mu$m]')
+        plt.title('Treliça Plana Deformada (200x $u_{xy}$)')
         plt.show(block=True)
 
 
