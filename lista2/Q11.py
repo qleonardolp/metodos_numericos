@@ -125,14 +125,17 @@ class femLinearElasticity():
         insert_list_idx = list(dict.fromkeys(insert_list_idx))  # remove duplicatas
 
         self.U = np.zeros(self.nnodes*2)
-        k = 0
+        UredListed = list(self.Ured)
+
         for i in range(self.nnodes*2):
-            if k < len(insert_list_idx):
-                if i == insert_list_idx[k]:
-                    k = k+1
+            k = -(i+1)  # indo de tras para frente
+            # se nao for o item da ultima posicao dessa lista:
+            if (2*self.nnodes+k) != insert_list_idx[-1]:
+                self.U[k] = UredListed.pop()
+            # se for o id = item da ultima posicao dessa lista,
+            # remove o ultimo item da lista:
             else:
-                self.U[i] = self.Ured[i-k]
-        #enfor
+                insert_list_idx.pop()
 
         # 6) Obtendo forcas de reacao:
         self.Reacoes = []
@@ -149,7 +152,7 @@ class femLinearElasticity():
 
     def plot(self):
         Uxy = self.U
-        scale = 1e6
+        scale = 0.5e6
         normas = np.zeros((self.nnodes,1))
         u = Uxy[::2]
         v = Uxy[1::2]
@@ -163,22 +166,24 @@ class femLinearElasticity():
         #plt.tripcolor(self.nodes[:,0]+scale*u, self.nodes[:,1]+scale*v, self.connectivities, 1e6*normas, shading='gouraud')
         plt.triplot(self.nodes[:,0]+scale*u, self.nodes[:,1]+scale*v, self.connectivities, '-r', linewidth=0.5)
         #plt.colorbar(format='%.3f', label='Norma do vetor $u_{xy} [\mu$m]')
-        plt.title('Chapa deformada em escala de cor')
+        plt.title('Chapa Original x Deformada (x500K $u_{xy}$)')
         plt.axis('equal')
         plt.show(block=False)
 
 
         #Campo de deformacoes:
-        scale = 1e6
+        scale = 1e9
         Uxy = scale*Uxy
         plt.figure()
         plt.quiver(self.nodes[:,0], self.nodes[:,1], Uxy[::2], Uxy[1::2], scale*normas, 
-                   cmap=cm.spring, headwidth=2.0, headlength=3, headaxislength=3)
+                   cmap=cm.cool, headwidth=2.0, headlength=3, headaxislength=3)
                   # use cm.winter para fundo branco
         plt.xlabel('x')
         plt.ylabel('y')
-        plt.colorbar(format='%.3f', label='Norma de $u_{xy} [\mu$m]')
-        plt.title('Campo de Deformações $u_{xy} [\mu$m]')
+        plt.xlim(-0.30,1.30)
+        plt.ylim(-0.1,1.30)
+        plt.colorbar(format='%.3f', label='Norma de $u_{xy}$ [nm]')
+        plt.title('Campo de Deformações $u_{xy}$[nm]')
         plt.show(block=True)
 
 
