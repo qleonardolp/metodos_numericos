@@ -285,9 +285,9 @@ class HT4():
 met = 'tri'   # tri ou quad
 problem = fem2DHeaTransfer(met)
 if met == 'tri':
-    mesh = meshio.read('./util/L2/ex1_mesh1_tri.msh')
+    mesh = meshio.read('./meshes/ex1_mesh1_tri.msh')
 if met == 'quad':
-    mesh = meshio.read('./util/L2/ex1_mesh1_quad.msh')
+    mesh = meshio.read('./meshes/ex1_mesh1_quad.msh')
 coords = np.array(mesh.points[:,0:2])
 connectivities = mesh.cells[-1].data
 
