@@ -142,8 +142,8 @@ class femLinearElasticity():
         self.F = np.matmul(self.Kglobal.toarray(), self.U)
         for nd in self.bcs_nodes:
             if nd[1] == 1: # Forca aplicada
-                self.Reacoes.append( self.F[2*nd[0]] )
-                self.Reacoes.append( self.F[2*nd[0]+1] )
+                self.Reacoes.append( -self.F[2*nd[0]] )
+                self.Reacoes.append( -self.F[2*nd[0]+1] )
         print('Forças de Reação:')
         print(self.Reacoes) # rever sinal!
 
