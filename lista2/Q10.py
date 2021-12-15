@@ -104,13 +104,17 @@ class femTrelica():
         insert_list_idx.sort()
 
         self.U = np.zeros(self.nnodes*2)
-        k = 0
+        UredListed = list(self.Ured)
+
         for i in range(self.nnodes*2):
-            if i == insert_list_idx[k]:
-                k = k+1
+            k = -(i+1)  # indo de tras para frente
+            # se nao for o item da ultima posicao dessa lista:
+            if (2*self.nnodes+k) != insert_list_idx[-1]:
+                self.U[k] = UredListed.pop()
+            # se for o id = item da ultima posicao dessa lista,
+            # remove o ultimo item da lista:
             else:
-                self.U[i] = self.Ured[i-k]
-        #enfor
+                insert_list_idx.pop()
 
         # 6) Obtendo forcas de reacao:
         self.Reacoes = []
@@ -123,8 +127,6 @@ class femTrelica():
         print(self.Reacoes) # rever sinal!
 
     #endmethod
-
-
 
     def plot(self):
         Uxy = self.U
@@ -150,7 +152,7 @@ class femTrelica():
         plt.xlabel('x')
         plt.ylabel('y')
         plt.colorbar(format='%.3f', label='Norma do vetor $u_{xy} [\mu$m]')
-        plt.title('Treliça Plana Deformada (200x $u_{xy}$)')
+        plt.title('Treliça Plana Deformada (x200 $u_{xy}$)')
         plt.show(block=True)
 
 
