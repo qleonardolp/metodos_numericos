@@ -15,9 +15,9 @@ from scipy.sparse.linalg import spsolve
 
 plt.style.use('dark_background') # comentar essa linha para ter as figuras com fundo branco
 
-## FEM2DHT Class Definition
+## FEM Class Definition
 
-class fem2DHeaTransfer():
+class femLinearElasticity():
     def __init__(self):
         self.nnodes = 0
         self.nelements = 0
@@ -41,7 +41,7 @@ class fem2DHeaTransfer():
             element.poisson_coeff = Poisson
 
     def createBoundaryConds(self, boundaries, bcNodes, bcValues):
-        self.bcs_nodes = [] # id/ tipo/ valor
+        self.bcs_nodes = [] # id/ tipo/ valor(res)
         eps = 0.000001
         for i,nd in enumerate(self.nodes):
             #(x=0)
@@ -62,7 +62,7 @@ class fem2DHeaTransfer():
                 self.bcs_nodes.append((i, typ, val))
 
         # pontos nos vertices satisfazem as condicoes 2x
-        #self.bcs_nodes.append((4, 0, 1e-9)) # bug?
+        self.bcs_nodes.append((4, 0, 0)) # bug?
 
         # Neumann conditions by nodes:
         for k, nd in enumerate(bcNodes):
@@ -95,82 +95,91 @@ class fem2DHeaTransfer():
         deleteId = []
         deleteId_forward = []
         for nd in self.bcs_nodes:
-            if nd[1] == 0:
+            if nd[1] == 0: # Restricao geometrica (Dirichlet)
                 deleteId.append(2*nd[0])
                 deleteId_forward.append(2*nd[0]+1)
             if nd[1] == 1: # Neumann
                 fglobal[2*nd[0]]   = nd[2][0] #(Fx)
                 fglobal[2*nd[0]+1] = nd[2][1] #(Fy)
 
-        self.f = np.delete(fglobal, deleteId + deleteId_forward, 0)
+        self.Kglobal = Kglobal
+        self.fglobal = fglobal
+
+        self.fred = np.delete(fglobal, deleteId + deleteId_forward, 0)
 
         K = Kglobal.toarray()
         K = np.delete(K, deleteId + deleteId_forward, 0) # deleta linhas
         K = np.delete(K, deleteId + deleteId_forward, 1) # deleta colunas
-        self.K = K
+        self.Kred = K
 
-        self.Ured = spsolve(sparse.csr_matrix(self.K), self.f)
-
-        # 2) Aplicação das BCs no vetor fglobal
-        # 3) Aplicar as condições de contorno na matriz Kglobal
-        w = 1e20
-        # Forcando BCs:
-        for nd in self.bcs_nodes:
-            if nd[1] == 0: # Dirichilet
-                if nd[2] == 1: # em u
-                    i = 2*nd[0]
-                    np.delete(fglobal,i)
-                    sparse.vstack([Kglobal[:i, :], Kglobal[i:, :]])
-                    sparse.hstack([Kglobal[:, :i], Kglobal[:, i:]])
-                if nd[2] == 2: # em v
-                    i = 2*nd[0] + 1
-                    np.delete(fglobal,i)
-                    sparse.vstack([Kglobal[:i, :], Kglobal[i:, :]])
-                    sparse.hstack([Kglobal[:, :i], Kglobal[:, i:]])
-            
-            if nd[1] == 1: # Neumann
-                fglobal[2*nd[0]]   = nd[2][0] #(Fx)
-                fglobal[2*nd[0]+1] = nd[2][1] #(Fy)
-        
-        self.Kglobal = Kglobal
-        self.fglobal = fglobal
         # 4) Resolver o problema
-        self.U = spsolve(Kglobal, fglobal)
+        self.Ured = spsolve(sparse.csr_matrix(self.Kred), self.fred)
+
+        # 5) Montando de volta o vetor global U:
+        insert_list_idx = []
+        for nd in self.bcs_nodes:
+            if nd[1] == 0: # Restricao geometrica (Dirichlet)
+                insert_list_idx.append(2*nd[0])
+                insert_list_idx.append(2*nd[0]+1)
+        insert_list_idx.sort()
+        insert_list_idx = list(dict.fromkeys(insert_list_idx))  # remove duplicatas
+
+        self.U = np.zeros(self.nnodes*2)
+        k = 0
+        for i in range(self.nnodes*2):
+            if k < len(insert_list_idx):
+                if i == insert_list_idx[k]:
+                    k = k+1
+            else:
+                self.U[i] = self.Ured[i-k]
+        #enfor
+
+        # 6) Obtendo forcas de reacao:
+        self.Reacoes = []
+        self.F = np.matmul(self.Kglobal.toarray(), self.U)
+        for nd in self.bcs_nodes:
+            if nd[1] == 1: # Forca aplicada
+                self.Reacoes.append( self.F[2*nd[0]] )
+                self.Reacoes.append( self.F[2*nd[0]+1] )
+        print('Forças de Reação:')
+        print(self.Reacoes) # rever sinal!
+
+    #endmethod
 
 
     def plot(self):
-        plt.figure()
-        plt.triplot(self.nodes[:,0], self.nodes[:,1], self.connectivities, '-w', linewidth=0.5)
-        plt.axis('off')
-        plt.axis('equal')
-        plt.figure()
-        plt.tripcolor(self.nodes[:,0], self.nodes[:,1], self.connectivities, self.T, shading='gouraud')
-        plt.triplot(self.nodes[:,0], self.nodes[:,1], self.connectivities, '-w', linewidth=0.5)
-        plt.colorbar()
-        plt.axis('off')
-        plt.axis('equal')
-        plt.title('Temperatura')
-        x = np.zeros((self.nelements,1), dtype='float')
-        y = x.copy()
-        u = x.copy()
-        v = x.copy()
-        L = x.copy()
-        for k,elmt in enumerate(self.elements):
-            x[k], y[k] = elmt.centroid[0], elmt.centroid[1]
+        Uxy = self.U
+        scale = 1e6
+        normas = np.zeros((self.nnodes,1))
+        u = Uxy[::2]
+        v = Uxy[1::2]
+        for i in range(self.nnodes):
+            normas[i] = np.linalg.norm([u[i], v[i]])
         
-        for k,q_vec in enumerate(self.flux):
-            u[k], v[k] = q_vec[0], q_vec[1]
-            L[k] = np.linalg.norm([u[k], v[k]])
-    
+        #Malha original:
         plt.figure()
-        plt.quiver(x, y, u, v, L, pivot='mid', cmap=cm.cool, 
-                    headwidth=4.0, headlength=4, headaxislength=4)
+        plt.triplot(self.nodes[:,0], self.nodes[:,1], self.connectivities, '-w', linewidth=0.5)
+        #Malha deformada (escala de cor: norma de u_xy):
+        #plt.tripcolor(self.nodes[:,0]+scale*u, self.nodes[:,1]+scale*v, self.connectivities, 1e6*normas, shading='gouraud')
+        plt.triplot(self.nodes[:,0]+scale*u, self.nodes[:,1]+scale*v, self.connectivities, '-r', linewidth=0.5)
+        #plt.colorbar(format='%.3f', label='Norma do vetor $u_{xy} [\mu$m]')
+        plt.title('Chapa deformada em escala de cor')
+        plt.axis('equal')
+        plt.show(block=False)
+
+
+        #Campo de deformacoes:
+        scale = 1e6
+        Uxy = scale*Uxy
+        plt.figure()
+        plt.quiver(self.nodes[:,0], self.nodes[:,1], Uxy[::2], Uxy[1::2], scale*normas, 
+                   cmap=cm.spring, headwidth=2.0, headlength=3, headaxislength=3)
+                  # use cm.winter para fundo branco
         plt.xlabel('x')
         plt.ylabel('y')
-        plt.axis('equal')
-        plt.colorbar(format='%.3f')
-        plt.title('Fluxo de Calor')    
-        plt.show()
+        plt.colorbar(format='%.3f', label='Norma de $u_{xy} [\mu$m]')
+        plt.title('Campo de Deformações $u_{xy} [\mu$m]')
+        plt.show(block=True)
 
 
 
@@ -184,7 +193,7 @@ class HT3():
         x = coords[self.enodes, 0]
         y = coords[self.enodes, 1]
         
-        A = 0.5*(x[0]*y[1] + y[0]*x[2] + x[1]*y[2] - x[2]*y[1] - x[0]*y[2] - x[1]*y[0])
+        A = 0.5*(x[0]*y[1] + y[0]*x[2] + x[1]*y[2] - x[2]*y[1] - x[0]*y[2] - x[1]*y[0])     #OK
         
         D = np.zeros((3,3))
         v = self.poisson_coeff
@@ -195,34 +204,31 @@ class HT3():
         D[1,1] = 1
         D[2,2] = (1 - v)/2
 
-        D = D*(E/(1 - v*v))
+        D = D*(E/(1 - v*v))     #OK
 
         # no caso triangular o produto das matrizes dentro da integral
         # nao depende de x e y.
         B = np.zeros((3,6))
-        B[0,0] = y[1] - y[2]
-        B[0,2] = y[2] - y[0]
-        B[0,4] = y[0] - y[1]
+        B[0,0] = y[1] - y[2]     #OK
+        B[0,2] = y[2] - y[0]     #OK
+        B[0,4] = y[0] - y[1]     #OK
 
-        B[1,1] = x[2] - x[1]
-        B[1,3] = x[0] - x[2]
-        B[1,5] = x[1] - x[0]
+        B[1,1] = x[2] - x[1]     #OK
+        B[1,3] = x[0] - x[2]     #OK
+        B[1,5] = x[1] - x[0]     #OK
 
-        B[2,0] = x[2] - x[1]
-        B[2,1] = y[1] - y[2]
-        B[2,2] = x[0] - x[2]
-        B[2,3] = y[2] - y[0]
-        B[2,4] = x[1] - x[0]
-        B[2,5] = y[0] - y[1]
-
-
-        B = (1.0/(2*A)) * B # Be, pg 160, eq 7.20
-
-        K = np.matmul(np.matmul(B.transpose(), D), B) * A
-
-        # K é simetrica 6x6
+        B[2,0] = x[2] - x[1]     #OK
+        B[2,1] = y[1] - y[2]     #OK
+        B[2,2] = x[0] - x[2]     #OK
+        B[2,3] = y[2] - y[0]     #OK
+        B[2,4] = x[1] - x[0]     #OK
+        B[2,5] = y[0] - y[1]     #OK
 
         # formulas no Jacob, pg 155 e 156, 160
+        B = (1.0/(2*A)) * B # Be, pg 160, eq 7.20
+
+        K = np.matmul(np.matmul(B.transpose(), D), B) * A     #OK
+        # K é simetrica 6x6
 
         self.area = A
         self.b_matrix = B
@@ -241,26 +247,26 @@ class HT3():
         #                           n55 n56  u3
         #                               n66  v3
 
-        ind_rows = 6*[n1] + 5*[n1 + 1] + 4*[n2] + 3*[n2 + 1] + 2*[n3] + 1*[n3 + 1]
+        ind_rows = 6*[n1] + 5*[n1 + 1] + 4*[n2] + 3*[n2 + 1] + 2*[n3] + 1*[n3 + 1]  #OK
         ind_cols = [n1, n1+1, n2, n2+1, n3, n3+1, 
                         n1+1, n2, n2+1, n3, n3+1,
                               n2, n2+1, n3, n3+1,
                                   n2+1, n3, n3+1,
                                         n3, n3+1,
-                                            n3+1]
+                                            n3+1]   #OK
         values =   [K[0,0], K[0,1], K[0,2], K[0,3], K[0,4], K[0,5],
                             K[1,1], K[1,2], K[1,3], K[1,4], K[1,5],
                                     K[2,2], K[2,3], K[2,4], K[2,5],
                                             K[3,3], K[3,4], K[3,5],
                                                     K[4,4], K[4,5],
-                                                            K[5,5]]
+                                                            K[5,5]] #OK
 
         return ind_rows, ind_cols, values
 
 ## Main Code ##
 
-problem = fem2DHeaTransfer()
-mesh = meshio.read('./util/L2/ex1_mesh1_tri.msh')
+problem = femLinearElasticity()
+mesh = meshio.read('./meshes/ex1_mesh1_tri.msh')
 coords = np.array(mesh.points[:,0:2])
 connectivities = mesh.cells[-1].data
 
@@ -281,7 +287,7 @@ Fy = 4000 #[N]
 # restricao geometrica: 1: (dx = 0), 2: (dy = 0)
 # E: Esq, D: Dir, Sup: Superior, Inf: Inferior
 bcs = {'E':(0,1), 'D':(-1,0), 'S':(-1,0), 'I':(0,2)}
-# Forca aplicada em x,y = 1,1 
+# Forca aplicada em x,y = 1,1 => Nó 2
 problem.createBoundaryConds(bcs, [2], [(Fx, Fy)])
 
 problem.solve()
