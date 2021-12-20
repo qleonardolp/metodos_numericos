@@ -88,7 +88,11 @@ for N in range(Nmax):
             Integral[N] += Wx_vec[i]*We_vec[j]*detJ*f_de_xieta(Xe, Ye, x, n)
 #endfor
 
-print(Integral)
+print(format(Integral[0],'.16f'))
+print(format(Integral[1],'.16f'))
+print(format(Integral[2],'.16f'))
+print(format(Integral[3],'.16f'))
+
 
 #quit()
 #Plotting
