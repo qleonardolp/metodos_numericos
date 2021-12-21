@@ -46,26 +46,6 @@ def jac_de_xieta(xe, ye, xi, eta):
     return J
 ##
 
-# Check functions:
-Xe = np.array([0, 2, 3, -1])
-Ye = np.array([0, 1, 2,  2])
-xi  = np.linspace(-1,1)
-eta = np.linspace(-1,1)
-f_de_xy = np.zeros((50,50,3))
-
-for i, x in enumerate(xi):
-        for j, n in enumerate(eta):
-            f_de_xy[i,j,0] = f_de_xieta(Xe, Ye, x, n)
-            f_de_xy[i,j,1] = map4q(Xe, x, n)
-            f_de_xy[i,j,2] = map4q(Ye, x, n)
-
-# Plotting... nao sei pq so plot uma fronteira, quando na vdd eu esperava a superficie
-plt.figure()
-ax = plt.axes(projection='3d')
-ax.plot_surface(f_de_xy[:,:,1], f_de_xy[:,:,2], f_de_xy[:,:,0], 
-                                cmap=cm.ocean, edgecolor='black')
-plt.show(block=False)
-
 ## Main Code ##
 
 Xe = np.array([0, 2, 3, -1])
@@ -93,22 +73,11 @@ print(format(Integral[1],'.16f'))
 print(format(Integral[2],'.16f'))
 print(format(Integral[3],'.16f'))
 
-
-#quit()
 #Plotting
 plt.figure()
 N = np.linspace(1,Nmax,Nmax)
 plt.plot(N, Integral,'--b')
 plt.xlabel(r'$\sqrt{n}$')
-plt.ylabel(r'$\int x^2 + y^2 d\Omega$')
-plt.grid()
-plt.show(block=True)
-
-quit()
-plt.figure()
-N = np.linspace(10,Nmax,Nmax-10)
-plt.plot(N, Integral[10:],'--b')
-plt.xlabel(r'$n$')
 plt.ylabel(r'$\int x^2 + y^2 d\Omega$')
 plt.grid()
 plt.show(block=True)

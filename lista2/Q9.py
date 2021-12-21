@@ -184,7 +184,6 @@ class fem2DHeaTransfer():
             Y = np.delete(self.nodes[:,1], 4)
             Temp = np.delete(self.T, 4)
             axs = plt.figure().add_subplot(projection='3d')
-            #axs.scatter(self.nodes[:,0], self.nodes[:,1], self.T, s=1.2, c=self.T)
             axs.plot_trisurf(X, Y, Temp, cmap=cm.viridis, linewidth=4)
             axs.set_xlabel('x')
             axs.set_ylabel('y')
