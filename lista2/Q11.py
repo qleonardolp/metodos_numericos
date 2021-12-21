@@ -13,7 +13,7 @@ from matplotlib import cm
 from scipy import sparse
 from scipy.sparse.linalg import spsolve
 
-plt.style.use('dark_background') # comentar essa linha para ter as figuras com fundo branco
+#plt.style.use('dark_background') # comentar essa linha para ter as figuras com fundo branco
 
 ## FEM Class Definition
 
@@ -161,12 +161,13 @@ class femLinearElasticity():
         
         #Malha original:
         plt.figure()
-        plt.triplot(self.nodes[:,0], self.nodes[:,1], self.connectivities, '-w', linewidth=0.5)
+        plt.triplot(self.nodes[:,0], self.nodes[:,1], self.connectivities, '-.k', linewidth=0.5)
         #Malha deformada (escala de cor: norma de u_xy):
-        #plt.tripcolor(self.nodes[:,0]+scale*u, self.nodes[:,1]+scale*v, self.connectivities, 1e6*normas, shading='gouraud')
         plt.triplot(self.nodes[:,0]+scale*u, self.nodes[:,1]+scale*v, self.connectivities, '-r', linewidth=0.5)
         #plt.colorbar(format='%.3f', label='Norma do vetor $u_{xy} [\mu$m]')
         plt.title('Chapa Original x Deformada (x500K $u_{xy}$)')
+        plt.xlim(-0.1,1.10)
+        plt.ylim(-0.1,1.10)
         plt.axis('equal')
         plt.show(block=False)
 
@@ -176,12 +177,13 @@ class femLinearElasticity():
         Uxy = scale*Uxy
         plt.figure()
         plt.quiver(self.nodes[:,0], self.nodes[:,1], Uxy[::2], Uxy[1::2], scale*normas, 
-                   cmap=cm.cool, headwidth=2.0, headlength=3, headaxislength=3)
-                  # use cm.winter para fundo branco
+                   cmap=cm.plasma, headwidth=2.0, headlength=3, headaxislength=3)
+                  # use cm.plasma para fundo branco
+                  # use cm.cool para fundo preto
         plt.xlabel('x')
         plt.ylabel('y')
-        plt.xlim(-0.30,1.30)
-        plt.ylim(-0.1,1.30)
+        plt.xlim(-0.10,1.10)
+        plt.ylim(-0.05,1.25)
         plt.colorbar(format='%.3f', label='Norma de $u_{xy}$ [nm]')
         plt.title('Campo de Deformações $u_{xy}$[nm]')
         plt.show(block=True)
