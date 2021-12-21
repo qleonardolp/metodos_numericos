@@ -97,14 +97,14 @@ class fem1DHTTransient():
         Tp[0,:] = self.temp_begin # condicao de temperatura inicial
 
         Dt = self.end_time/self.num_steps # Delta_t
+        condutivity = k_term
+        Area = 1.000 # area unitaria
 
         #Metodo Implicito
         Ak1 = ((1/Dt)*Mglobal + Kglobal) # precisava converter para usar inv da numpy: ".toarray()"
         Ak1_inv = sprlinalg.inv(Ak1.tocsr())
-        Ak = Ak1_inv*(1/Dt)*Mglobal
+        Ak = condutivity*Ak1_inv*(1/Dt)*Mglobal
 
-        condutivity = k_term
-        Area = 1.000 # area unitaria
 
         for k, t in enumerate (self.time[:-1]):
             # ajustando o vetor fglobal de acordo com BC de Neumann no tempo:
