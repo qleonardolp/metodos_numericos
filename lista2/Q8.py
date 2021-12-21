@@ -89,15 +89,6 @@ class fem1DHTTransient():
 
         # 1) Montagem do vetor fglobal
         fglobal = np.zeros(self.nnodes)
-
-        # 2) Aplicação das BCs no vetor fglobal
-        # 3) Aplicar as condições de contorno na matriz Kglobal
-        w = 1e20
-        # usado para BCs de Dirichlet
-        for nd in self.bcs_nodes:
-            if nd[1] == 0: # B.C. de Dirichlet
-                fglobal[nd[0]] = nd[2] * w
-                Kglobal[nd[0], nd[0]] += w
         
         self.Kglobal = Kglobal
         self.fglobal = fglobal
@@ -112,16 +103,19 @@ class fem1DHTTransient():
         Ak1_inv = sprlinalg.inv(Ak1.tocsr())
         Ak = Ak1_inv*(1/Dt)*Mglobal
 
+        condutivity = k_term
+        Area = 1.000 # area unitaria
+
         for k, t in enumerate (self.time[:-1]):
-            # ajustando o vetor fglobal de acordo com BC de Neumann
+            # ajustando o vetor fglobal de acordo com BC de Neumann no tempo:
             for nd in self.bcs_nodes:
                 if(nd[1] == 1): #BC de Neumann
                     if (nd[3] > 0) and (t <= nd[3]):
-                        fglobal[nd[0]] = nd[2]
+                        fglobal[nd[0]] = condutivity*Area*nd[2]
                     if (nd[3] > 0) and (t > nd[3]):
                         fglobal[nd[0]] = 0
                     if (nd[3] == -1):
-                        fglobal[nd[0]] = nd[2]
+                        fglobal[nd[0]] = condutivity*Area*nd[2]
             # metodo implicito:
             Tp[k+1,:] = Ak*Tp[k,:] + Ak1_inv*fglobal
 
