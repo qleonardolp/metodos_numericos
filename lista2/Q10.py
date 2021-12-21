@@ -11,7 +11,7 @@ from matplotlib import cm
 from scipy import sparse
 from scipy.sparse.linalg import spsolve
 
-plt.style.use('dark_background') # comentar essa linha para ter as figuras com fundo branco
+#plt.style.use('dark_background') # comentar essa linha para ter as figuras com fundo branco
 
 ## FEM Class Definition
 
@@ -123,8 +123,25 @@ class femTrelica():
             if nd[1] == 1: # Forca aplicada
                 self.Reacoes.append( -self.F[2*nd[0]] )
                 self.Reacoes.append( -self.F[2*nd[0]+1] )
-        print('Forças de Reação:')
+        print('Forças de Reação (N):')
         print(self.Reacoes) # rever sinal!
+
+        # 7) Obtendo forcas normais em cada barra:
+        ndXDeformado = self.nodes[:,0] + self.U[::2]
+        ndYDeformado = self.nodes[:,1] + self.U[1::2]
+        ndNormal = []
+        for elmt in self.elements:
+            n1 = elmt.enodes[0]
+            n2 = elmt.enodes[1]
+            Dx = ndXDeformado[n1] - ndXDeformado[n2]
+            Dy = ndYDeformado[n1] - ndYDeformado[n2]
+            Length = np.sqrt(Dx*Dx + Dy*Dy)
+            Forca = elmt.area*elmt.young_modulus*(Length - elmt.comprimento)/elmt.comprimento
+            ndNormal.append(Forca)
+        self.Normais = ndNormal
+        print('Forças normais nas barras (N):')
+        print(ndNormal)
+
 
     #endmethod
 
@@ -147,14 +164,31 @@ class femTrelica():
         Uxy = scale*Uxy
         #plt.figure()
         plt.quiver(self.nodes[:,0], self.nodes[:,1], Uxy[::2], Uxy[1::2], scale*normas, 
-                   cmap=cm.spring, headwidth=2.0, headlength=3, headaxislength=3)
+                   cmap=cm.winter, headwidth=2.0, headlength=3, headaxislength=3)
                   # use cm.winter para fundo branco
+                  # use cm.spring para fundo preto
         plt.xlabel('x')
         plt.ylabel('y')
         plt.colorbar(format='%.3f', label='Norma do vetor $u_{xy} [\mu$m]')
         plt.title('Treliça Plana Deformada (x200 $u_{xy}$)')
-        plt.show(block=True)
+        plt.show(block=False)
 
+        scale = 2e2
+        plt.figure()
+        for k, elmt in enumerate(self.elements):
+            n1 = elmt.enodes[0]
+            n2 = elmt.enodes[1]
+            if self.Normais[k] > 0:
+                plt.plot([self.nodes[n1,0]+scale*u[n1], self.nodes[n2,0]+scale*u[n2]] ,
+                         [self.nodes[n1,1]+scale*v[n1], self.nodes[n2,1]+scale*v[n2]], '-g', linewidth=0.6)
+            if self.Normais[k] < 0:
+                plt.plot([self.nodes[n1,0]+scale*u[n1], self.nodes[n2,0]+scale*u[n2]] ,
+                         [self.nodes[n1,1]+scale*v[n1], self.nodes[n2,1]+scale*v[n2]], '--r', linewidth=0.6)
+        plt.title('Treliça Deformada (x200 $u_{xy}$), Compressão (--) / Tração (-)')
+        plt.axis('equal')
+        plt.xlabel('x')
+        plt.ylabel('y')
+        plt.show(block=True)
 
 
 class Trelica():
