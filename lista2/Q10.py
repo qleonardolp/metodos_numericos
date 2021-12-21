@@ -124,7 +124,7 @@ class femTrelica():
                 self.Reacoes.append( -self.F[2*nd[0]] )
                 self.Reacoes.append( -self.F[2*nd[0]+1] )
         print('Forças de Reação (N):')
-        print(self.Reacoes) # rever sinal!
+        print(self.Reacoes) 
 
         # 7) Obtendo forcas normais em cada barra:
         ndXDeformado = self.nodes[:,0] + self.U[::2]

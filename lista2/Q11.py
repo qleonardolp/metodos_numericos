@@ -145,7 +145,7 @@ class femLinearElasticity():
                 self.Reacoes.append( -self.F[2*nd[0]] )
                 self.Reacoes.append( -self.F[2*nd[0]+1] )
         print('Forças de Reação:')
-        print(self.Reacoes) # rever sinal!
+        print(self.Reacoes)
 
     #endmethod
 
