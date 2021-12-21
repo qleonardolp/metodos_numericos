@@ -273,7 +273,7 @@ class HT3():
 ## Main Code ##
 
 problem = femLinearElasticity()
-mesh = meshio.read('./meshes/ex1_mesh1_tri.msh')
+mesh = meshio.read('./lista2/ex1_mesh1_tri.msh') # alterar aqui para caminho absoluto ou relativo
 coords = np.array(mesh.points[:,0:2])
 connectivities = mesh.cells[-1].data
 
