@@ -11,6 +11,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import cm
+from numpy.lib.function_base import append
 from scipy import sparse
 from scipy.sparse import linalg as sprlinalg
 ## Class Definition
@@ -42,94 +43,98 @@ class fem1DRotatingBeam():
             self.elements.append(element)
         self.nelements = len(self.elements)
 
-    def createBoundaryConds(self, Omg, Fx, Fy, Fz):
+    def createBoundaryConds(self, Omg, dOmg, Fx, Fy, Fz):
         # Series temporais de Omega, Fx, Fy, Fz
         self.Omega = Omg
+        self.dOmega = dOmg
         self.ps = Fx
         self.pv = Fy
         self.pw = Fz
 
-    def solve(self):
+    def solveChordwise(self):
 
-        row_m = []
-        col_m = []
+        rows = []
+        cols = []
         val_m = []
-        row_k = []
-        col_k = []
         val_k = []
-        row_g = []
-        col_g = []
         val_g = []
-        row_s = []
-        col_s = []
         val_s = []
+        rows_f = []
+        val_f0s = []
+        val_f1s = []
+        val_f0v = []
+        val_f1v = []
+
 
         for element in self.elements:
             r, c, v = element.me(self.nodes)
-            row_m.append(r)
-            col_m.append(c)
+            rows.append(r)
+            cols.append(c)
             val_m.append(v)
-            r, c, v = element.ke(self.nodes)
-            row_k.append(r)
-            col_k.append(c)
-            val_k.append(v)
-            r, c, v = element.ge(self.nodes)
-            row_g.append(r)
-            col_g.append(c)
-            val_g.append(v)
-            r, c, v = element.se(self.nodes)
-            row_s.append(r)
-            col_s.append(c)
-            val_s.append(v)
+            val_k.append( element.ke(self.nodes) )
+            val_g.append( element.ge(self.nodes) )
+            val_s.append( element.se(self.nodes) )
+            r, v = element.fe0s(self.nodes)
+            rows_f.append(r)
+            val_f0s.append(v)
+            val_f1s.append(element.fe1s(self.nodes))
+            val_f0v.append(element.fe0v(self.nodes))
+            val_f1v.append(element.fe1v(self.nodes))
 
-        row_k = np.array(row_k, dtype='int').flatten()
-        col_k = np.array(col_k, dtype='int').flatten()
-        val_k = np.array(val_k, dtype='float').flatten()
-        # Montagem da matriz global K
-        K_g = sparse.csr_matrix((val_k, (row_k, col_k)), shape=((self.nnodes, self.nnodes)))
-        K_g = K_g + K_g.T - sparse.diags(K_g.diagonal(), dtype='float')
-
-        row_m = np.array(row_m, dtype='int').flatten()
-        col_m = np.array(col_m, dtype='int').flatten()
-        val_m = np.array(val_m, dtype='float').flatten()
+        rows = np.array(rows, dtype='int').flatten()
+        cols = np.array(cols, dtype='int').flatten()
         # Montagem da matriz global M
-        M_g = sparse.csr_matrix((val_m, (row_m, col_m)), shape=((self.nnodes, self.nnodes)))
+        val_m = np.array(val_m, dtype='float').flatten()
+        M_g = sparse.csr_matrix((val_m, (rows, cols)), shape=((self.nnodes*3, self.nnodes*3)))
         M_g = M_g + M_g.T - sparse.diags(M_g.diagonal(), dtype='float')
+        # Montagem da matriz global K
+        val_k = np.array(val_k, dtype='float').flatten()
+        K_g = sparse.csr_matrix((val_k, (rows, cols)), shape=((self.nnodes*3, self.nnodes*3)))
+        K_g = K_g + K_g.T - sparse.diags(K_g.diagonal(), dtype='float')
+        # Montagem da matriz global G
+        val_g = np.array(val_g, dtype='float').flatten()
+        G_g = sparse.csr_matrix((val_g, (rows, cols)), shape=((self.nnodes*3, self.nnodes*3)))
+        G_g = G_g - G_g.T + sparse.diags(G_g.diagonal(), dtype='float')
+        # Montagem da matriz global S
+        val_s = np.array(val_s, dtype='float').flatten()
+        S_g = sparse.csr_matrix((val_s, (rows, cols)), shape=((self.nnodes*3, self.nnodes*3)))
+        S_g = S_g + S_g.T - sparse.diags(S_g.diagonal(), dtype='float')
 
-        # Montagem do vetor fglobal
-        f_g = np.zeros(self.nnodes)
+        # Montagem dos vetores fglobal
+        rows_f = np.array(rows_f, dtype='int').flatten()
+        val_f0s = np.array(val_f0s, dtype='float').flatten()
+        fg_0s = sparse.csr_matrix((val_f0s, (rows_f, np.zeros(np.shape(rows_f)) )), shape=((self.nnodes*3, 1)))
+        val_f1s = np.array(val_f1s, dtype='float').flatten()
+        fg_1s = sparse.csr_matrix((val_f1s, (rows_f, np.zeros(np.shape(rows_f)) )), shape=((self.nnodes*3, 1)))
+        val_f0v = np.array(val_f0v, dtype='float').flatten()
+        fg_0v = sparse.csr_matrix((val_f0v, (rows_f, np.zeros(np.shape(rows_f)) )), shape=((self.nnodes*3, 1)))
+        val_f1v = np.array(val_f1v, dtype='float').flatten()
+        fg_1v = sparse.csr_matrix((val_f1v, (rows_f, np.zeros(np.shape(rows_f)) )), shape=((self.nnodes*3, 1)))
 
-        self.K_g = K_g
+        f_g = np.zeros(self.nnodes*3)
+
         self.M_g = M_g
-        self.f_g = f_g
+        self.K_g = K_g
+        self.G_g = G_g
+        self.S_g = S_g
+        self.fg = fg_0s #teste
 
-        Tp = np.zeros((self.num_steps, self.nnodes))
-        Tp[0,:] = self.temp_begin # condicao de temperatura inicial
+        d = np.zeros((self.nnodes*3, self.num_steps))
+        v = np.zeros((self.nnodes*3, 2)) 
+        a = np.zeros((self.nnodes*3, 2)) 
 
-        Dt = self.end_time/self.num_steps # Delta_t
-        condutivity = k_term
-        Area = 1.000 # area unitaria
-
-        #Metodo Implicito
-        Ak1 = ((1/Dt)*M_g + K_g) # precisava converter para usar inv da numpy: ".toarray()"
-        Ak1_inv = sprlinalg.inv(Ak1.tocsr())
-        Ak = condutivity*Ak1_inv*(1/Dt)*M_g
+        dt = self.end_time/self.num_steps # Delta t
 
 
         for k, t in enumerate (self.time[:-1]):
-            # ajustando o vetor f_g de acordo com BC de Neumann no tempo:
-            for nd in self.bcs_nodes:
-                if(nd[1] == 1): #BC de Neumann
-                    if (nd[3] > 0) and (t <= nd[3]):
-                        f_g[nd[0]] = condutivity*Area*nd[2]
-                    if (nd[3] > 0) and (t > nd[3]):
-                        f_g[nd[0]] = 0
-                    if (nd[3] == -1):
-                        f_g[nd[0]] = condutivity*Area*nd[2]
-            # metodo implicito:
-            Tp[k+1,:] = Ak*Tp[k,:] + Ak1_inv*f_g
+            pal = k*t
+            # ajustando o vetor f_g de acordo com [ps pv pw]:
+            #...
 
-        self.T = Tp
+        self.d = d
+
+    def solveFlapwise(self):
+        return False
 
     def plot(self):
         return False
@@ -191,7 +196,7 @@ class RB2():
                             n1+2, n2, n2+1, n2+2,
                                   n2, n2+1, n2+2,
                                       n2+1, n2+2,
-                                            n2+2]   #OK
+                                            n2+2]
         values =   [M[0,0], M[0,1], M[0,2], M[0,3], M[0,4], M[0,5],
                             M[1,1], M[1,2], M[1,3], M[1,4], M[1,5],
                                     M[2,2], M[2,3], M[2,4], M[2,5],
@@ -200,51 +205,169 @@ class RB2():
                                                             M[5,5]] #OK
 
         M = M + M.T - np.diag(M.diagonal())
-        self.Me = M
+        self.m_mtx = M
         self.h = h
 
         return row_id, col_id, values
 
     def ke(self, coords): # constroi a matrix K do elemento
         x = coords[self.enodes, 0]
-        Area = 1 # area unitaria
+        h = abs(x[1] - x[0]) # element size
+        Ks = np.zeros((6,6))
+        Kv = np.zeros((6,6))
+        # Ref. 1, eq.(34)
 
-        Ke_11 = (self.k *Area / self.L) 
-        Ke_12 = -Ke_11
-        Ke_22 =  Ke_11
-        
-        # Ke = [[(n1, n1), (n1, n2)], [(n2, n1), (n2,n2)]]
-        n1 = self.enodes[0]
-        n2 = self.enodes[1]
-        ind_rows = [n1, n1, n2]
-        ind_cols = [n1, n2, n2]
-        values = [Ke_11, Ke_12, Ke_22]
-        
-        return ind_rows, ind_cols, values
+        Ks[0,0] =  1/h
+        Ks[0,3] = -Ks[0,0]
+        Ks[3,0] = -Ks[0,0]
+        Ks[3,3] =  Ks[0,0]
+
+        Kv[1,1] = 12/(h*h*h)
+        Kv[1,2] = 6/(h*h)
+        Kv[1,4] = -12/(h*h*h)
+        Kv[1,5] = 6/(h*h)
+
+        Kv[2,2] = 4/(h)
+        Kv[2,4] = -6/(h*h)
+        Kv[2,5] = 2/(h)
+
+        Kv[4,4] = 12/(h*h*h)
+        Kv[4,5] = -6/(h*h)
+
+        Kv[5,5] = 4/(h)
+
+        K = (self.E*self.A/self.L)*Ks + (self.E*self.Iz/self.L)*Kv
+
+        values =   [K[0,0], K[0,1], K[0,2], K[0,3], K[0,4], K[0,5],
+                            K[1,1], K[1,2], K[1,3], K[1,4], K[1,5],
+                                    K[2,2], K[2,3], K[2,4], K[2,5],
+                                            K[3,3], K[3,4], K[3,5],
+                                                    K[4,4], K[4,5],
+                                                            K[5,5]]
+
+        K = K + K.T - np.diag(K.diagonal())
+        self.k_mtx = K
+        return values
     
     def ge(self, coords): # constroi a matrix G do elemento
         x = coords[self.enodes, 0]
-        # ...
+        h = abs(x[1] - x[0]) # element size
+        G = np.zeros((6,6))
+        # Ref. 1, eq.(34)
 
-        n1 = self.enodes[0]
-        n2 = self.enodes[1]
-        ind_rows = [n1, n1, n2]
-        ind_cols = [n1, n2, n2]
-        values = [Ke_11, Ke_12, Ke_22]
-        
-        return ind_rows, ind_cols, values
+        G[0,1] = -7*h/20
+        G[0,2] = -(h*h)/20
+        G[0,4] = -3*h/20
+        G[0,5] =  h*h/30
+
+        G[1,3] =  3*h/20
+
+        G[2,3] =  h*h/30
+
+        G[3,4] = -7*h/20
+        G[3,5] =  h*h/20
+
+        G = (self.rho*self.A/self.L)*G
+
+        values =   [G[0,0], G[0,1], G[0,2], G[0,3], G[0,4], G[0,5],
+                            G[1,1], G[1,2], G[1,3], G[1,4], G[1,5],
+                                    G[2,2], G[2,3], G[2,4], G[2,5],
+                                            G[3,3], G[3,4], G[3,5],
+                                                    G[4,4], G[4,5],
+                                                            G[5,5]] #OK
+
+        G = G - G.T + np.diag(G.diagonal()) # skew-symmetric
+        self.g_mtx = G
+        return values
     
     def se(self, coords): # constroi a matrix S do elemento
         x = coords[self.enodes, 0]
-        #...
+        h = abs(x[1] - x[0]) # element size
+        a =  x.min()
+        S0 = np.zeros((6,6))
+        S1 = np.zeros((6,6))
+        S2 = np.zeros((6,6))
+        # Ref. 1, eq.(34)
+        # Zero Order Mtx
+        S0[1,1] = 6/(5*h)
+        S0[1,2] = 1/10
+        S0[1,4] = -6/(5*h)
+        S0[1,5] = 1/10
+        S0[2,2] = 2*h/15
+        S0[2,4] = -1/10
+        S0[2,5] = -h/30
+        S0[4,4] = 6/(5*h)
+        S0[4,5] = -1/10
+        S0[5,5] = 2*h/15
 
-        n1 = self.enodes[0]
-        n2 = self.enodes[1]
-        ind_rows = [n1, n1, n2]
-        ind_cols = [n1, n2, n2]
-        values = [Ke_11, Ke_12, Ke_22]
-        
-        return ind_rows, ind_cols, values
+        # First Order Mtx
+        S1[1,1] = 6*a/(5*h) + 3/5
+        S1[1,2] = a/10 + h/10
+        S1[1,4] = -6*a/(5*h) - 3/5
+        S1[1,5] = a/10
+        S1[2,2] = (h*(4*a + h))/30
+        S1[2,4] = -a/10 -h/10
+        S1[2,5] = -(h*(2*a + h))/60
+        S1[4,4] = (6*a)/(5*h) + 3/5
+        S1[4,5] = -a/10
+        S1[5,5] = (h*(4*a + 3*h))/30
+
+        # Second Order Mtx
+        S2[1,1] = (6*a*a)/(5*h) + (6*a)/5 + (12*h)/35
+        S2[1,2] = a*a/10 + (a*h)/5 + h*h/14
+        S2[1,4] = -(6*a)/5 -(12*h)/35 -(6*a*a)/(5*h)
+        S2[1,5] = a*a/10 - h*h/35
+        S2[2,2] = (h*(14*a*a + 7*a*h + 2*h*h))/105
+        S2[2,4] = -a*a/10 -(a*h)/5 -h*h/14
+        S2[2,5] = -(h*(7*a*a + 7*a*h + 3*h*h))/210
+        S2[4,4] = (6*a*a)/(5*h) + (6*a)/5 + (12*h)/35
+        S2[4,5] = h*h/35 - a*a/10
+        S2[5,5] = (h*(14*a*a + 21*a*h + 9*h*h))/105
+
+
+        S = (self.offset + 0.5*self.L)*self.L*S0 - (self.offset)*S1 - (0.5)*S2
+        S = (self.rho*self.A/self.L)*S
+
+        values =   [S[0,0], S[0,1], S[0,2], S[0,3], S[0,4], S[0,5],
+                            S[1,1], S[1,2], S[1,3], S[1,4], S[1,5],
+                                    S[2,2], S[2,3], S[2,4], S[2,5],
+                                            S[3,3], S[3,4], S[3,5],
+                                                    S[4,4], S[4,5],
+                                                            S[5,5]]
+
+        S = S + S.T - np.diag(S.diagonal())
+        self.s_mtx = S
+        return values
+
+    def fe0s(self, coords): # 0-ord Ns fe vector
+        x = coords[self.enodes, 0]
+        h = abs(x[1] - x[0]) # element size
+        v = [h/2, 0, 0, h/2, 0, 0]
+        n1 = 3*self.enodes[0]
+        n2 = 3*self.enodes[1]
+        rows = [n1] + [n1+1] + [n1+2] + [n2] + [n2+1] + [n2 + 2] 
+        return rows, v
+
+    def fe1s(self, coords): # 1-ord Ns fe vector
+        x = coords[self.enodes, 0]
+        h = abs(x[1] - x[0]) # element size
+        a =  x.min()
+        v = [(h*(3*a + h))/6, 0, 0, (h*(3*a + 2*h))/6, 0, 0]
+        return v
+
+    def fe0v(self, coords): # 0-ord Nv fe vector
+        x = coords[self.enodes, 0]
+        h = abs(x[1] - x[0]) # element size
+        v = [0, h/2, h*h/12, 0, h/2, -h*h/12]
+        return v
+
+    def fe1v(self, coords): # 1-ord Nv fe vector
+        x = coords[self.enodes, 0]
+        h = abs(x[1] - x[0]) # element size
+        a =  x.min()
+        v = [0, (h*(10*a + 3*h))/20, (h*h*(5*a + 2*h))/60, 
+             0, (h*(10*a + 7*h))/20, -(h*h*(5*a + 3*h))/60]
+        return v
 
 
 ## Main Code ##
@@ -280,11 +403,13 @@ problem.createElements(connectivities, props) # array dos elementos,
 # Boundary conditions (Dynamic Conditions)
 t = np.linspace(0.0, t_end, time_steps)
 Omg = 1.0*np.sin(0.5*t)
+dotOmg = 1.0*0.5*np.cos(0.5*t)
 Fx = 0*t
 Fy = 0*t
 Fz = 0*t
-problem.createBoundaryConds(Omg, Fx, Fy, Fz)
+problem.createBoundaryConds(Omg, dotOmg, Fx, Fy, Fz)
 
-problem.solve()
+problem.solveChordwise()
+problem.solveFlapwise()
 
 problem.plot()
