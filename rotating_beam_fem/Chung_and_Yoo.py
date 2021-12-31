@@ -222,7 +222,26 @@ class fem1DRotatingBeam():
         return False
 
     def plot(self):
-        return False
+        plt.figure()
+        plt.plot(self.time, self.Omega)
+        plt.plot(self.time, self.dOmega, '--r')
+        
+        plt.title('$\Omega$ e $\dot{\Omega}$')
+        plt.axis('equal')
+        plt.xlabel('t')
+        plt.grid()
+        plt.show(block=False)
+
+        plt.figure()
+        plt.plot(self.time[:3], self.d[0,:3])
+        plt.plot(self.time[:3], self.d[1,:3], '--r')
+        
+        plt.title('$s$ e $v$ do Nó 2')
+        plt.axis('equal')
+        plt.xlabel('t')
+        plt.grid()
+        plt.show(block=True)
+
 
 
 class RB2():
@@ -486,9 +505,12 @@ problem.createElements(connectivities, props) # array dos elementos,
 # em que cada elemento contem os ids dos seus nos, mas o objeto element nao contem a info das coords
 
 # Boundary conditions (Dynamic Conditions)
-t = np.linspace(0.0, t_end, time_steps)
-Omg = 1.0*np.sin(0.5*t)
-dotOmg = 1.0*0.5*np.cos(0.5*t)
+T = t_end
+Amp = 1.0
+w = 2*np.pi/T
+t = np.linspace(0.0, T, time_steps)
+Omg = Amp*np.sin(w*t)
+dotOmg = Amp*(w)*np.cos(w*t)
 Fx = 0*t
 Fy = 0*t
 Fz = 0*t
