@@ -29,6 +29,7 @@ class fem1DRotatingBeam():
         self.beta = 0.25*(1 - self.alp_m + self.alp_f)**2  #Ref 2 eq.(20)
         self.end_time   = end_time
         self.num_steps = time_steps
+        self.delta_t = end_time/time_steps
         self.time = np.linspace(0.0, self.end_time, self.num_steps)
 
     def createNodes(self, coords):
@@ -50,6 +51,7 @@ class fem1DRotatingBeam():
         self.ps = Fx
         self.pv = Fy
         self.pw = Fz
+        # Rever BCs de Dirichlet e Neumann...
 
     def solveChordwise(self):
 
@@ -121,8 +123,9 @@ class fem1DRotatingBeam():
         a = np.zeros((self.nnodes*3, 2))              # d2/dt2 deformacoes
 
         M_inv = sprlinalg.inv(M_g.tocsr()) # M^-1, pre-calculada pois é constante no tempo
+        M_inv = M_inv.toarray()
         SminusM = S_g - M_g
-        dt = self.end_time/self.num_steps  # Delta t
+        dt = self.delta_t  # Delta t
         af = self.alp_f
         am = self.alp_m
         bet = self.beta
@@ -143,7 +146,11 @@ class fem1DRotatingBeam():
                 f = f + (Pv[k] - rhoA*dotOmg[k]*of)*fg_0v - (rhoA*dotOmg[k])*fg_1v
                 C = 2*Omg[k]*G_g
                 K = K_g + omgSq_k*SminusM + dotOmg[k]*G_g
-                a[:,0] = M_inv*(f - C*v[:,k] - K*d[:,k])        # a0
+                
+                V =   -np.matmul(K.toarray(), d[:,k]).reshape((self.nnodes*3, 1))
+                V = V -np.matmul(C.toarray(), v[:,0]).reshape((self.nnodes*3, 1))
+                V = V + f.toarray()
+                a[:,0] = np.matmul(M_inv, V).reshape((self.nnodes*3, ))        # a0
                 a[:,1] = a[:,0]
             else:
                 omgSq_k_1 = Omg[k-1]*Omg[k-1]
@@ -167,7 +174,11 @@ class fem1DRotatingBeam():
                 a[:,0] = a[:,1]
                 v[:,0] = v[:,1]
 
-                a_am = M_inv*(f - C*v_af - K*d_af)
+                #V = f - C*v_af - K*d_af
+                V = np.matmul(K.toarray(), d_af).reshape((self.nnodes*3, 1))
+                V = V + np.matmul(C.toarray(), v_af).reshape((self.nnodes*3, 1))
+                V = f.toarray() - V
+                a_am = np.matmul(M_inv, V).reshape((self.nnodes*3, )) 
                 a[:,1] = (a_am - am*a[:,0])/(1 - am)
 
         self.d = d
@@ -412,8 +423,8 @@ class RB2():
 ## Main Code ##
 
 beamLength = 0.30 #[m]
-t_end = 30.00     #[s]
-time_steps = 150
+t_end = 10.00     #[s]
+time_steps = 200
 nnodes = 16
 offset = beamLength*5/100
 Radius = 2*beamLength/70 # Euler-Bernoulli beam theory constrain with alpha = 70, see Ref 1 eq (43)
@@ -424,7 +435,7 @@ Iyy = 0.25* np.pi*pow(Radius, 4)
 E = 27e6        # [Pa] (27 MPa)
 density = 1.2e3 # [Kg/m^3]
 
-spec_rds = 0.7 #Spectral Radius (rho_inf) [Ref 2]
+spec_rds = 0.2 #Spectral Radius (rho_inf) [Ref 2]
 # util para o caso 2D:
 coords = np.zeros((nnodes, 2)) 
 coords[:,0] = np.linspace(0.0, beamLength, nnodes)
