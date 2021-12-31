@@ -171,8 +171,8 @@ class fem1DRotatingBeam():
         dotOmg = self.dOmega
         rhoA  = self.properties['Area']*self.properties['Density']
         of = self.properties['a']
-        
-        for k, t in enumerate (self.time[:-1]):
+        '''
+        for k, t in enumerate(self.time[:-1]):
             omgSq_k = Omg[k]*Omg[k]
             # Applying eq.(34) and (37)
             if k == 0:
@@ -200,8 +200,8 @@ class fem1DRotatingBeam():
                 C = 2*Omg[k]*G_g
                 K = K_g + omgSq_k*SminusM + dotOmg[k]*G_g
 
-                # The Generalized \alpha Algorithm ( Ref. 2 eq.(4)-(13) )
-                d[:,k] = d[:,k-1] + dt*v[:,0] + dt*dt*((0.5 - bet)*a[:,0] + bet*a[:,1])
+                # The Generalized 'alpha' Algorithm ( Ref. 2 eq.(4)-(13) )
+                d[:,k] = d[:,k-1] + dt*v[:,0] + 0.5*dt*dt*((1 - bet)*a[:,0] + bet*a[:,1])
                 v[:,1] = v[:,0] + dt*((1 - gam)*a[:,0] + gam*a[:,1])
                 d_af = (1 - af)*d[:,k] + af*d[:,k-1]
                 v_af = (1 - af)*v[:,1] + af*v[:,0]
@@ -215,8 +215,23 @@ class fem1DRotatingBeam():
                 V = f - V
                 a_am = np.matmul(M_inv, V).reshape((resized, )) 
                 a[:,1] = (a_am - am*a[:,0])/(1 - am)
+        '''
+        # Tentar metodo implicito tradicional...
+        for k, _ in enumerate(self.time[:-1]):
+            omgSq_k = Omg[k+1]*Omg[k+1]
+            if k == 0:
+                continue
+            else:
+                f = (Ps[k+1] + rhoA*omgSq_k*of)*fg_0s + (rhoA*omgSq_k)*fg_1s
+                f = f + (Pv[k+1] - rhoA*dotOmg[k+1]*of)*fg_0v - (rhoA*dotOmg[k+1])*fg_1v
+                C = 2*Omg[k+1]*G_g
+                K = K_g + omgSq_k*SminusM + dotOmg[k+1]*G_g
+                H = (M_g/(dt*dt) + C/dt + K)
+                J = f + np.matmul(M_g/(dt*dt) + C/dt ,d[:,k]).reshape((resized, 1)) - np.matmul(M_g/(dt*dt), d[:,k-1]).reshape((resized, 1))
+                d[:,k+1] = np.linalg.solve(H, J).reshape((resized, ))
 
         self.d = d
+
 
     def solveFlapwise(self):
         return False
@@ -232,9 +247,10 @@ class fem1DRotatingBeam():
         plt.grid()
         plt.show(block=False)
 
+        scale = 1e6
         plt.figure()
-        plt.plot(self.time[:3], self.d[0,:3])
-        plt.plot(self.time[:3], self.d[1,:3], '--r')
+        plt.plot(self.time[:], self.d[0,:]*scale)
+        plt.plot(self.time[:], self.d[1,:]*scale, '--r')
         
         plt.title('$s$ e $v$ do Nó 2')
         plt.axis('equal')
