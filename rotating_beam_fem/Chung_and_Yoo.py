@@ -51,7 +51,12 @@ class fem1DRotatingBeam():
         self.ps = Fx
         self.pv = Fy
         self.pw = Fz
-        # Rever BCs de Dirichlet e Neumann...
+        # Aqui os Nós com BC de Dirichlet são pre-determinados (0)
+        # apenas o primeiro:
+        self.bcs_nodes = [] # id/ tipo/ valor(res)
+        self.bcs_nodes.append((0, 0))
+        # Neumann, apenas o ultimo:
+        self.bcs_nodes.append((self.nnodes-1, 1))
 
     def solveChordwise(self):
 
@@ -118,12 +123,42 @@ class fem1DRotatingBeam():
         self.G_g = G_g
         self.S_g = S_g
 
-        d = np.zeros((self.nnodes*3, self.num_steps)) # deformacoes
-        v = np.zeros((self.nnodes*3, 2))              # d/dt deformacoes
-        a = np.zeros((self.nnodes*3, 2))              # d2/dt2 deformacoes
+        # Aplicando BCs:
+        s_lst = []
+        v_lst = []
+        tht_lst = []
+        for nd in self.bcs_nodes:
+            if nd[1] == 0: # Restricao geometrica (Dirichlet)
+                s_lst.append(3*nd[0])
+                v_lst.append(3*nd[0]+1)
+                tht_lst.append(3*nd[0]+2)
+            if nd[1] == 1: # Neumann
+                continue #nao sei ainda...
 
-        M_inv = sprlinalg.inv(M_g.tocsr()) # M^-1, pre-calculada pois é constante no tempo
-        M_inv = M_inv.toarray()
+        fg_0s = np.delete(fg_0s.toarray(), s_lst + v_lst + tht_lst, 0)
+        fg_1s = np.delete(fg_1s.toarray(), s_lst + v_lst + tht_lst, 0)
+        fg_0v = np.delete(fg_0v.toarray(), s_lst + v_lst + tht_lst, 0)
+        fg_1v = np.delete(fg_1v.toarray(), s_lst + v_lst + tht_lst, 0)
+
+        resized = np.size(fg_0s)
+
+        M_g = np.delete(M_g.toarray(), s_lst + v_lst + tht_lst, 0) # deleta linhas
+        M_g = np.delete(M_g, s_lst + v_lst + tht_lst, 1) # deleta colunas
+        K_g = np.delete(K_g.toarray(), s_lst + v_lst + tht_lst, 0)
+        K_g = np.delete(K_g, s_lst + v_lst + tht_lst, 1)
+        G_g = np.delete(G_g.toarray(), s_lst + v_lst + tht_lst, 0)
+        G_g = np.delete(G_g, s_lst + v_lst + tht_lst, 1)
+        S_g = np.delete(S_g.toarray(), s_lst + v_lst + tht_lst, 0)
+        S_g = np.delete(S_g, s_lst + v_lst + tht_lst, 1)
+
+        d = np.zeros((resized, self.num_steps)) # deformacoes
+        v = np.zeros((resized, 2))              # d/dt deformacoes
+        a = np.zeros((resized, 2))              # d2/dt2 deformacoes
+
+        #M_inv = sprlinalg.inv(M_g.tocsr()) # M^-1, pre-calculada pois é constante no tempo
+        #M_inv = M_inv.toarray()
+
+        M_inv = np.linalg.inv(M_g) 
         SminusM = S_g - M_g
         dt = self.delta_t  # Delta t
         af = self.alp_f
@@ -147,10 +182,10 @@ class fem1DRotatingBeam():
                 C = 2*Omg[k]*G_g
                 K = K_g + omgSq_k*SminusM + dotOmg[k]*G_g
                 
-                V =   -np.matmul(K.toarray(), d[:,k]).reshape((self.nnodes*3, 1))
-                V = V -np.matmul(C.toarray(), v[:,0]).reshape((self.nnodes*3, 1))
-                V = V + f.toarray()
-                a[:,0] = np.matmul(M_inv, V).reshape((self.nnodes*3, ))        # a0
+                V =   -np.matmul(K, d[:,k]).reshape((resized, 1))
+                V = V -np.matmul(C, v[:,0]).reshape((resized, 1))
+                V = V + f
+                a[:,0] = np.matmul(M_inv, V).reshape((resized, ))        # a0
                 a[:,1] = a[:,0]
             else:
                 omgSq_k_1 = Omg[k-1]*Omg[k-1]
@@ -175,10 +210,10 @@ class fem1DRotatingBeam():
                 v[:,0] = v[:,1]
 
                 #V = f - C*v_af - K*d_af
-                V = np.matmul(K.toarray(), d_af).reshape((self.nnodes*3, 1))
-                V = V + np.matmul(C.toarray(), v_af).reshape((self.nnodes*3, 1))
-                V = f.toarray() - V
-                a_am = np.matmul(M_inv, V).reshape((self.nnodes*3, )) 
+                V = np.matmul(K, d_af).reshape((resized, 1))
+                V = V + np.matmul(C, v_af).reshape((resized, 1))
+                V = f - V
+                a_am = np.matmul(M_inv, V).reshape((resized, )) 
                 a[:,1] = (a_am - am*a[:,0])/(1 - am)
 
         self.d = d
@@ -435,7 +470,7 @@ Iyy = 0.25* np.pi*pow(Radius, 4)
 E = 27e6        # [Pa] (27 MPa)
 density = 1.2e3 # [Kg/m^3]
 
-spec_rds = 0.2 #Spectral Radius (rho_inf) [Ref 2]
+spec_rds = 0.8 #Spectral Radius (rho_inf) [Ref 2]
 # util para o caso 2D:
 coords = np.zeros((nnodes, 2)) 
 coords[:,0] = np.linspace(0.0, beamLength, nnodes)
