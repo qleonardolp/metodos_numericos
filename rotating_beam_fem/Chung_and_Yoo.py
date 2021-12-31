@@ -51,45 +51,57 @@ class fem1DRotatingBeam():
 
     def solve(self):
 
-        rowsK = []
-        colsK = []
-        valuesK = []
-        rowsM = []
-        colsM = []
-        valuesM = []
+        row_m = []
+        col_m = []
+        val_m = []
+        row_k = []
+        col_k = []
+        val_k = []
+        row_g = []
+        col_g = []
+        val_g = []
+        row_s = []
+        col_s = []
+        val_s = []
 
         for element in self.elements:
-            r, c, v = element.Ke(self.nodes)
-            rowsK.append(r)
-            colsK.append(c)
-            valuesK.append(v)
-            r, c, v = element.Me(self.nodes)
-            rowsM.append(r)
-            colsM.append(c)
-            valuesM.append(v)
+            r, c, v = element.me(self.nodes)
+            row_m.append(r)
+            col_m.append(c)
+            val_m.append(v)
+            r, c, v = element.ke(self.nodes)
+            row_k.append(r)
+            col_k.append(c)
+            val_k.append(v)
+            r, c, v = element.ge(self.nodes)
+            row_g.append(r)
+            col_g.append(c)
+            val_g.append(v)
+            r, c, v = element.se(self.nodes)
+            row_s.append(r)
+            col_s.append(c)
+            val_s.append(v)
 
-        rowsK = np.array(rowsK, dtype='int').flatten()
-        colsK = np.array(colsK, dtype='int').flatten()
-        valuesK = np.array(valuesK, dtype='float').flatten()
+        row_k = np.array(row_k, dtype='int').flatten()
+        col_k = np.array(col_k, dtype='int').flatten()
+        val_k = np.array(val_k, dtype='float').flatten()
         # Montagem da matriz global K
-        Kglobal = sparse.csr_matrix((valuesK, (rowsK, colsK)), shape=((self.nnodes, self.nnodes)))
-        Kglobal = Kglobal + Kglobal.T - sparse.diags(Kglobal.diagonal(), dtype='float')
+        K_g = sparse.csr_matrix((val_k, (row_k, col_k)), shape=((self.nnodes, self.nnodes)))
+        K_g = K_g + K_g.T - sparse.diags(K_g.diagonal(), dtype='float')
 
-        rowsM = np.array(rowsM, dtype='int').flatten()
-        colsM = np.array(colsM, dtype='int').flatten()
-        valuesM = np.array(valuesM, dtype='float').flatten()
+        row_m = np.array(row_m, dtype='int').flatten()
+        col_m = np.array(col_m, dtype='int').flatten()
+        val_m = np.array(val_m, dtype='float').flatten()
         # Montagem da matriz global M
-        Mglobal = sparse.csr_matrix((valuesM, (rowsM, colsM)), shape=((self.nnodes, self.nnodes)))
-        Mglobal = Mglobal + Mglobal.T - sparse.diags(Mglobal.diagonal(), dtype='float')
+        M_g = sparse.csr_matrix((val_m, (row_m, col_m)), shape=((self.nnodes, self.nnodes)))
+        M_g = M_g + M_g.T - sparse.diags(M_g.diagonal(), dtype='float')
 
-        self.Kglobal = Kglobal
-        self.Mglobal = Mglobal
+        # Montagem do vetor fglobal
+        f_g = np.zeros(self.nnodes)
 
-        # 1) Montagem do vetor fglobal
-        fglobal = np.zeros(self.nnodes)
-        
-        self.Kglobal = Kglobal
-        self.fglobal = fglobal
+        self.K_g = K_g
+        self.M_g = M_g
+        self.f_g = f_g
 
         Tp = np.zeros((self.num_steps, self.nnodes))
         Tp[0,:] = self.temp_begin # condicao de temperatura inicial
@@ -99,39 +111,28 @@ class fem1DRotatingBeam():
         Area = 1.000 # area unitaria
 
         #Metodo Implicito
-        Ak1 = ((1/Dt)*Mglobal + Kglobal) # precisava converter para usar inv da numpy: ".toarray()"
+        Ak1 = ((1/Dt)*M_g + K_g) # precisava converter para usar inv da numpy: ".toarray()"
         Ak1_inv = sprlinalg.inv(Ak1.tocsr())
-        Ak = condutivity*Ak1_inv*(1/Dt)*Mglobal
+        Ak = condutivity*Ak1_inv*(1/Dt)*M_g
 
 
         for k, t in enumerate (self.time[:-1]):
-            # ajustando o vetor fglobal de acordo com BC de Neumann no tempo:
+            # ajustando o vetor f_g de acordo com BC de Neumann no tempo:
             for nd in self.bcs_nodes:
                 if(nd[1] == 1): #BC de Neumann
                     if (nd[3] > 0) and (t <= nd[3]):
-                        fglobal[nd[0]] = condutivity*Area*nd[2]
+                        f_g[nd[0]] = condutivity*Area*nd[2]
                     if (nd[3] > 0) and (t > nd[3]):
-                        fglobal[nd[0]] = 0
+                        f_g[nd[0]] = 0
                     if (nd[3] == -1):
-                        fglobal[nd[0]] = condutivity*Area*nd[2]
+                        f_g[nd[0]] = condutivity*Area*nd[2]
             # metodo implicito:
-            Tp[k+1,:] = Ak*Tp[k,:] + Ak1_inv*fglobal
+            Tp[k+1,:] = Ak*Tp[k,:] + Ak1_inv*f_g
 
         self.T = Tp
 
     def plot(self):
-        fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
-        # Plot the surface.
-        eixo_x, eixo_t = np.meshgrid(self.nodes[:,0], self.time)
-        surf = ax.plot_surface(eixo_x, eixo_t, self.T,
-                                cmap=cm.plasma, linewidth=0, antialiased=False)
-        # A StrMethodFormatter is used automatically
-        ax.zaxis.set_major_formatter('{x:.02f}')
-        plt.xlabel('x (m)')
-        plt.ylabel('tempo (s)')
-        # Add a color bar which maps values to colors.
-        fig.colorbar(surf, shrink=0.5, aspect=5, format='%.3f', label='Temperatura (°C)')
-        plt.show()
+        return False
 
 
 class RB2():
@@ -146,9 +147,66 @@ class RB2():
         self.Iy  = props['MoIy']
         self.rho = props['Density']
 
-    def Ke(self, coords): # constroi a matrix K do elemento
+    def me(self, coords): # constroi a matrix M do elemento
         x = coords[self.enodes, 0]
-        self.L = abs(x[1] - x[0])
+        h = abs(x[1] - x[0]) # element size
+        M = np.zeros((6,6))
+        # Ref. 1, eq.(34), using Matlab symbolic math...(check script)
+
+        M[0,0] = h/3
+        M[0,3] = h/6
+
+        M[1,1] = 13*h/35
+        M[1,2] = 11*h*h/210
+        M[1,4] = 9*h/70
+        M[1,5] = -13*h*h/420
+
+        M[2,2] = h*h*h/105
+        M[2,4] = 13*h*h/420
+        M[2,5] = -h*h*h/140
+
+        M[3,3] = h/3
+
+        M[4,4] = 13*h/35
+        M[4,5] = -11*h*h/210
+
+        M[5,5] = h*h*h/105
+
+        M = (self.rho*self.A/self.L)*M
+
+        n1 = 3*self.enodes[0]
+        n2 = 3*self.enodes[1]
+
+        #  s1  v1 tht1    s2  v2 tht2     
+        # n11 n12  n13   n14 n15  n16  s1
+        #     n22  n23   n24 n25  n26  v1 
+        #          n33   n34 n35  n36  tht1
+        #               ...
+        #                n44 n45  n46  s2
+        #                    n55  n56  v2
+        #                         n66  tht2
+        row_id = 6*[n1] + 5*[n1+1] + 4*[n1+2] + 3*[n2] + 2*[n2+1] + 1*[n2 + 2] 
+        col_id = [n1, n1+1, n1+2, n2, n2+1, n2+2, 
+                      n1+1, n1+2, n2, n2+1, n2+2,
+                            n1+2, n2, n2+1, n2+2,
+                                  n2, n2+1, n2+2,
+                                      n2+1, n2+2,
+                                            n2+2]   #OK
+        values =   [M[0,0], M[0,1], M[0,2], M[0,3], M[0,4], M[0,5],
+                            M[1,1], M[1,2], M[1,3], M[1,4], M[1,5],
+                                    M[2,2], M[2,3], M[2,4], M[2,5],
+                                            M[3,3], M[3,4], M[3,5],
+                                                    M[4,4], M[4,5],
+                                                            M[5,5]] #OK
+
+        M = M + M.T - np.diag(M.diagonal())
+        self.Me = M
+        self.h = h
+
+        return row_id, col_id, values
+
+    def ke(self, coords): # constroi a matrix K do elemento
+        x = coords[self.enodes, 0]
         Area = 1 # area unitaria
 
         Ke_11 = (self.k *Area / self.L) 
@@ -163,15 +221,11 @@ class RB2():
         values = [Ke_11, Ke_12, Ke_22]
         
         return ind_rows, ind_cols, values
-
-    def Me(self, coords):
+    
+    def ge(self, coords): # constroi a matrix G do elemento
         x = coords[self.enodes, 0]
-        self.L = abs(x[1] - x[0])
+        # ...
 
-        Ke_11 = 2/6*(self.rhocp * self.L) # Jacob Fish, pg 99
-        Ke_12 = Ke_11/2
-        Ke_22 = Ke_11
-        
         n1 = self.enodes[0]
         n2 = self.enodes[1]
         ind_rows = [n1, n1, n2]
@@ -179,6 +233,19 @@ class RB2():
         values = [Ke_11, Ke_12, Ke_22]
         
         return ind_rows, ind_cols, values
+    
+    def se(self, coords): # constroi a matrix S do elemento
+        x = coords[self.enodes, 0]
+        #...
+
+        n1 = self.enodes[0]
+        n2 = self.enodes[1]
+        ind_rows = [n1, n1, n2]
+        ind_cols = [n1, n2, n2]
+        values = [Ke_11, Ke_12, Ke_22]
+        
+        return ind_rows, ind_cols, values
+
 
 ## Main Code ##
 
