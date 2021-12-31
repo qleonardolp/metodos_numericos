@@ -12,7 +12,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as anime
 from matplotlib import cm
-from numpy.core.shape_base import block
 from scipy import sparse
 
 ## Class Definition
@@ -32,7 +31,8 @@ class fem1DRotatingBeam():
         self.num_steps = time_steps
         self.delta_t = end_time/time_steps
         self.time = np.linspace(0.0, self.end_time, self.num_steps)
-        self.scale_factor = 25000
+        self.scale_factor_v = 1e2
+        self.scale_factor_s = 1e5
 
     def createNodes(self, coords):
         self.nodes = coords
@@ -157,7 +157,6 @@ class fem1DRotatingBeam():
         v = np.zeros((resized, 2))              # d/dt deformacoes
         a = np.zeros((resized, 2))              # d2/dt2 deformacoes
 
-        M_inv = np.linalg.inv(M_g) 
         SminusM = S_g - M_g
         dt = self.delta_t  # Delta t
         af = self.alp_f
@@ -193,7 +192,7 @@ class fem1DRotatingBeam():
 
 
     def plot(self):
-        scale = self.scale_factor
+        scale = self.scale_factor_s
         # Plot s(x)
         fig, ax = plt.subplots()
         line, = ax.plot(self.nodes[1:,0], scale*self.d[0::3,0])
@@ -202,16 +201,16 @@ class fem1DRotatingBeam():
         plt.title('s(x) x25K')
         plt.grid()
 
-        def s_timesires(k): # update data
+        def s_timeseries(k): # update data
             i = k%(len(self.time))
             line.set_ydata(scale*self.d[0::3,i])
             return line, # precisa da virgula!!!
 
-        ani = anime.FuncAnimation(fig, s_timesires, interval=20, blit=True, save_count=50)
+        ani = anime.FuncAnimation(fig, s_timeseries, interval=20, blit=True, save_count=50)
         plt.show(block=True)
 
         # Plot v(x)
-        scale = scale/250
+        scale = self.scale_factor_v
         fig, ax = plt.subplots()
         line, = ax.plot(self.nodes[1:,0], scale*self.d[1::3,0])
         plt.xlabel('x')
@@ -219,12 +218,12 @@ class fem1DRotatingBeam():
         plt.title('$v(x)$ x100')
         plt.grid()
 
-        def v_timesires(k): # update data
+        def v_timeseries(k): # update data
             i = k%(len(self.time))
             line.set_ydata(scale*self.d[1::3,i])
             return line, # precisa da virgula!!!
 
-        ani = anime.FuncAnimation(fig, v_timesires, interval=20, blit=True, save_count=50)
+        ani = anime.FuncAnimation(fig, v_timeseries, interval=20, blit=True, save_count=50)
         plt.show(block=True)
 
         # Plot theta(x)
@@ -235,13 +234,42 @@ class fem1DRotatingBeam():
         plt.title('$\Theta(x)$')
         plt.grid()
 
-        def tht_timesires(k): # update data
+        def tht_timeseries(k): # update data
             i = k%(len(self.time))
             line.set_ydata(self.d[2::3,i]*180/np.pi)
             return line, # precisa da virgula!!!
 
-        ani = anime.FuncAnimation(fig, tht_timesires, interval=20, blit=True, save_count=50)
+        ani = anime.FuncAnimation(fig, tht_timeseries, interval=20, blit=True, save_count=50)
         plt.show(block=True)
+
+        # Plot Com a Barra "rodando"...
+        xe = np.zeros((self.nnodes,1))
+        ye = np.zeros((self.nnodes,1))
+        se = self.scale_factor_s*self.d[0::3,:]
+        ve = self.scale_factor_v*self.d[1::3,:]
+        thte = self.d[2::3,:]
+        xe[1:] = (self.nodes[1:,0] + se[:,0]*np.cos(thte[:,0])).reshape((self.nnodes-1,1))
+        ye[1:] = (ve[:,0] + se[:,0]*np.sin(thte[:,0])).reshape((self.nnodes-1,1))
+
+        fig, ax = plt.subplots()
+        line, = ax.plot(xe, ye)
+        ax.plot(xe, ye, '--r')
+        plt.xlabel('x')
+        plt.ylabel('y')
+        plt.title('Barra Def. vs Não Def. sob $\Omega(t)$, v(x) x100 e s(x) x100K')
+        plt.grid()
+
+        def xy_timeseries(k):
+            i = k%(len(self.time))
+            xe[1:] = (self.nodes[1:,0] + se[:,i]*np.cos(thte[:,i])).reshape((self.nnodes-1,1))
+            ye[1:] = (ve[:,i] + se[:,i]*np.sin(thte[:,i])).reshape((self.nnodes-1,1))
+            line.set_xdata(xe)
+            line.set_ydata(ye)
+            return line, # precisa da virgula!!!
+        
+        ani = anime.FuncAnimation(fig, xy_timeseries, interval=20, blit=True, save_count=50)
+        plt.show(block=True)
+
 
 
 
