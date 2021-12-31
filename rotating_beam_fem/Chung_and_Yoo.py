@@ -111,25 +111,64 @@ class fem1DRotatingBeam():
         val_f1v = np.array(val_f1v, dtype='float').flatten()
         fg_1v = sparse.csr_matrix((val_f1v, (rows_f, np.zeros(np.shape(rows_f)) )), shape=((self.nnodes*3, 1)))
 
-        f_g = np.zeros(self.nnodes*3)
-
         self.M_g = M_g
         self.K_g = K_g
         self.G_g = G_g
         self.S_g = S_g
-        self.fg = fg_0s #teste
 
-        d = np.zeros((self.nnodes*3, self.num_steps))
-        v = np.zeros((self.nnodes*3, 2)) 
-        a = np.zeros((self.nnodes*3, 2)) 
+        d = np.zeros((self.nnodes*3, self.num_steps)) # deformacoes
+        v = np.zeros((self.nnodes*3, 2))              # d/dt deformacoes
+        a = np.zeros((self.nnodes*3, 2))              # d2/dt2 deformacoes
 
-        dt = self.end_time/self.num_steps # Delta t
-
-
+        M_inv = sprlinalg.inv(M_g.tocsr()) # M^-1, pre-calculada pois é constante no tempo
+        SminusM = S_g - M_g
+        dt = self.end_time/self.num_steps  # Delta t
+        af = self.alp_f
+        am = self.alp_m
+        bet = self.beta
+        gam = self.gamma
+        Ps = self.ps
+        Pv = self.pv
+        Omg = self.Omega
+        dotOmg = self.dOmega
+        rhoA  = self.properties['Area']*self.properties['Density']
+        of = self.properties['a']
+        
         for k, t in enumerate (self.time[:-1]):
-            pal = k*t
-            # ajustando o vetor f_g de acordo com [ps pv pw]:
-            #...
+            omgSq_k = Omg[k]*Omg[k]
+            # Applying eq.(34) and (37)
+            if k == 0:
+                # ajustando o vetor fg de acordo com [ps pv pw]:
+                f = (Ps[k] + rhoA*omgSq_k*of)*fg_0s + (rhoA*omgSq_k)*fg_1s
+                f = f + (Pv[k] - rhoA*dotOmg[k]*of)*fg_0v - (rhoA*dotOmg[k])*fg_1v
+                C = 2*Omg[k]*G_g
+                K = K_g + omgSq_k*SminusM + dotOmg[k]*G_g
+                a[:,0] = M_inv*(f - C*v[:,k] - K*d[:,k])        # a0
+                a[:,1] = a[:,0]
+            else:
+                omgSq_k_1 = Omg[k-1]*Omg[k-1]
+                # ajustando o vetor fg de acordo com [ps pv pw]:
+                fk = (Ps[k] + rhoA*omgSq_k*of)*fg_0s + (rhoA*omgSq_k)*fg_1s
+                fk = fk + (Pv[k] - rhoA*dotOmg[k]*of)*fg_0v - (rhoA*dotOmg[k])*fg_1v
+
+                fk1 = (Ps[k-1] + rhoA*omgSq_k_1*of)*fg_0s + (rhoA*omgSq_k_1)*fg_1s
+                fk1 = fk1 + (Pv[k-1] - rhoA*dotOmg[k-1]*of)*fg_0v - (rhoA*dotOmg[k-1])*fg_1v
+                f = (1 - af)*fk + af*fk1
+
+                C = 2*Omg[k]*G_g
+                K = K_g + omgSq_k*SminusM + dotOmg[k]*G_g
+
+                # The Generalized \alpha Algorithm ( Ref. 2 eq.(4)-(13) )
+                d[:,k] = d[:,k-1] + dt*v[:,0] + dt*dt*((0.5 - bet)*a[:,0] + bet*a[:,1])
+                v[:,1] = v[:,0] + dt*((1 - gam)*a[:,0] + gam*a[:,1])
+                d_af = (1 - af)*d[:,k] + af*d[:,k-1]
+                v_af = (1 - af)*v[:,1] + af*v[:,0]
+                # k <- k+1:
+                a[:,0] = a[:,1]
+                v[:,0] = v[:,1]
+
+                a_am = M_inv*(f - C*v_af - K*d_af)
+                a[:,1] = (a_am - am*a[:,0])/(1 - am)
 
         self.d = d
 
@@ -145,12 +184,12 @@ class RB2():
         #{'Area':crossArea, 'Young':E, 'MoIz':Izz, 'MoIy':Iyy, 'Density':density, 'L':beamLength, 'a':offset}
         self.enodes = nodes
         self.L   = props['L']
-        self.offset = props['a']
-        self.A   = props['Area']
-        self.E   = props['Young']
         self.Iz  = props['MoIz']
         self.Iy  = props['MoIy']
-        self.rho = props['Density']
+        self.offset = props['a']
+        self.E   = props['Young']
+        self.A   = props['Area']
+        self.rhoA   = props['Area']*props['Density']
 
     def me(self, coords): # constroi a matrix M do elemento
         x = coords[self.enodes, 0]
@@ -177,7 +216,7 @@ class RB2():
 
         M[5,5] = h*h*h/105
 
-        M = (self.rho*self.A/self.L)*M
+        M = self.rhoA*M
 
         n1 = 3*self.enodes[0]
         n2 = 3*self.enodes[1]
@@ -267,7 +306,7 @@ class RB2():
         G[3,4] = -7*h/20
         G[3,5] =  h*h/20
 
-        G = (self.rho*self.A/self.L)*G
+        G = self.rhoA*G
 
         values =   [G[0,0], G[0,1], G[0,2], G[0,3], G[0,4], G[0,5],
                             G[1,1], G[1,2], G[1,3], G[1,4], G[1,5],
@@ -326,7 +365,7 @@ class RB2():
 
 
         S = (self.offset + 0.5*self.L)*self.L*S0 - (self.offset)*S1 - (0.5)*S2
-        S = (self.rho*self.A/self.L)*S
+        S = self.rhoA*S
 
         values =   [S[0,0], S[0,1], S[0,2], S[0,3], S[0,4], S[0,5],
                             S[1,1], S[1,2], S[1,3], S[1,4], S[1,5],
