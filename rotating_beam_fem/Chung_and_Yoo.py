@@ -548,7 +548,9 @@ dotOmg = Amp*(w)*np.cos(w*t)
 Fx = 0*t
 Fy = 0*t
 Fz = 0*t
-#Fy[-20:] = 0.1 #construir Fy suave no tempo...
+
+t_offset = int(0.1*time_steps)
+Fy[-t_offset:] = 0.3*np.sin(w*t[:t_offset])
 problem.createBoundaryConds(Omg, dotOmg, Fx, Fy, Fz)
 
 problem.solveChordwise()
