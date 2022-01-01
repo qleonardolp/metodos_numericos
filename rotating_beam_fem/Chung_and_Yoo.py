@@ -250,21 +250,37 @@ class fem1DRotatingBeam():
         thte = self.d[2::3,:]
         xe[1:] = (self.nodes[1:,0] + se[:,0]*np.cos(thte[:,0])).reshape((self.nnodes-1,1))
         ye[1:] = (ve[:,0] + se[:,0]*np.sin(thte[:,0])).reshape((self.nnodes-1,1))
+        self.angle_last = 0
+        Lmt = 1.1*self.properties['L']
 
         fig, ax = plt.subplots()
         line, = ax.plot(xe, ye)
         ax.plot(xe, ye, '--r')
+        plt.title('Barra Def. vs Não Def. sob $\Omega(t)$, v(x) x100 e s(x) x100K')
         plt.xlabel('x')
         plt.ylabel('y')
-        plt.title('Barra Def. vs Não Def. sob $\Omega(t)$, v(x) x100 e s(x) x100K')
+        #plt.axis('equal')
+        plt.xlim(-Lmt,Lmt)
+        plt.ylim(-Lmt,Lmt)
         plt.grid()
 
         def xy_timeseries(k):
             i = k%(len(self.time))
             xe[1:] = (self.nodes[1:,0] + se[:,i]*np.cos(thte[:,i])).reshape((self.nnodes-1,1))
             ye[1:] = (ve[:,i] + se[:,i]*np.sin(thte[:,i])).reshape((self.nnodes-1,1))
-            line.set_xdata(xe)
-            line.set_ydata(ye)
+
+            # Rotation about the Origin
+            angle = self.angle_last + self.Omega[i]*self.delta_t
+            cAng = np.cos(angle)
+            sAng = np.sin(angle)
+            self.angle_last = angle
+
+            # "Rotation Matrix":
+            xe_rot = xe*cAng - ye*sAng
+            ye_rot = xe*sAng + ye*cAng
+
+            line.set_xdata(xe_rot)
+            line.set_ydata(ye_rot)
             return line, # precisa da virgula!!!
         
         ani = anime.FuncAnimation(fig, xy_timeseries, interval=20, blit=True, save_count=50)
@@ -532,6 +548,7 @@ dotOmg = Amp*(w)*np.cos(w*t)
 Fx = 0*t
 Fy = 0*t
 Fz = 0*t
+#Fy[-20:] = 0.1 #construir Fy suave no tempo...
 problem.createBoundaryConds(Omg, dotOmg, Fx, Fy, Fz)
 
 problem.solveChordwise()
