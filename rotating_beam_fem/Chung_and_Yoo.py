@@ -550,7 +550,8 @@ Fy = 0*t
 Fz = 0*t
 
 t_offset = int(0.1*time_steps)
-Fy[-t_offset:] = 0.3*np.sin(w*t[:t_offset])
+#Fy[-t_offset:] = 0.3*np.sin(w*t[:t_offset])
+Fx[-t_offset:] = 0.1*np.sin(w*t[:t_offset])
 problem.createBoundaryConds(Omg, dotOmg, Fx, Fy, Fz)
 
 problem.solveChordwise()
