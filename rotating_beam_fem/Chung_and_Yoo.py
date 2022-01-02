@@ -11,8 +11,10 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as anime
-from matplotlib import cm
 from scipy import sparse
+
+## Global Variables
+Dimensionality = 3 # never change!!!
 
 ## Class Definition
 
@@ -42,7 +44,7 @@ class fem1DRotatingBeam():
         self.connectivities = connectivities
         self.properties = props
         for item in connectivities:
-            element = RB2(item, props)
+            element = RB2(item, self.nodes[item, 0], props)
             self.elements.append(element)
         self.nelements = len(self.elements)
 
@@ -61,7 +63,7 @@ class fem1DRotatingBeam():
         self.bcs_nodes.append((self.nnodes-1, 1))
 
     def solveChordwise(self):
-
+        D = Dimensionality
         rows = []
         cols = []
         val_m = []
@@ -74,51 +76,50 @@ class fem1DRotatingBeam():
         val_f0v = []
         val_f1v = []
 
-
         for element in self.elements:
-            r, c, v = element.me(self.nodes)
+            r, c, v = element.me()
             rows.append(r)
             cols.append(c)
             val_m.append(v)
-            val_k.append( element.ke(self.nodes) )
-            val_g.append( element.ge(self.nodes) )
-            val_s.append( element.se(self.nodes) )
-            r, v = element.fe0s(self.nodes)
+            val_k.append(element.ke())
+            val_g.append(element.ge())
+            val_s.append(element.se())
+            r, v = element.fe0s()
             rows_f.append(r)
             val_f0s.append(v)
-            val_f1s.append(element.fe1s(self.nodes))
-            val_f0v.append(element.fe0v(self.nodes))
-            val_f1v.append(element.fe1v(self.nodes))
+            val_f1s.append(element.fe1s())
+            val_f0v.append(element.fe0v())
+            val_f1v.append(element.fe1v())
 
         rows = np.array(rows, dtype='int').flatten()
         cols = np.array(cols, dtype='int').flatten()
         # Montagem da matriz global M
         val_m = np.array(val_m, dtype='float').flatten()
-        M_g = sparse.csr_matrix((val_m, (rows, cols)), shape=((self.nnodes*3, self.nnodes*3)))
+        M_g = sparse.csr_matrix((val_m, (rows, cols)), shape=((self.nnodes*D, self.nnodes*D)))
         M_g = M_g + M_g.T - sparse.diags(M_g.diagonal(), dtype='float')
         # Montagem da matriz global K
         val_k = np.array(val_k, dtype='float').flatten()
-        K_g = sparse.csr_matrix((val_k, (rows, cols)), shape=((self.nnodes*3, self.nnodes*3)))
+        K_g = sparse.csr_matrix((val_k, (rows, cols)), shape=((self.nnodes*D, self.nnodes*D)))
         K_g = K_g + K_g.T - sparse.diags(K_g.diagonal(), dtype='float')
         # Montagem da matriz global G
         val_g = np.array(val_g, dtype='float').flatten()
-        G_g = sparse.csr_matrix((val_g, (rows, cols)), shape=((self.nnodes*3, self.nnodes*3)))
+        G_g = sparse.csr_matrix((val_g, (rows, cols)), shape=((self.nnodes*D, self.nnodes*D)))
         G_g = G_g - G_g.T + sparse.diags(G_g.diagonal(), dtype='float')
         # Montagem da matriz global S
         val_s = np.array(val_s, dtype='float').flatten()
-        S_g = sparse.csr_matrix((val_s, (rows, cols)), shape=((self.nnodes*3, self.nnodes*3)))
+        S_g = sparse.csr_matrix((val_s, (rows, cols)), shape=((self.nnodes*D, self.nnodes*D)))
         S_g = S_g + S_g.T - sparse.diags(S_g.diagonal(), dtype='float')
 
         # Montagem dos vetores fglobal
         rows_f = np.array(rows_f, dtype='int').flatten()
         val_f0s = np.array(val_f0s, dtype='float').flatten()
-        fg_0s = sparse.csr_matrix((val_f0s, (rows_f, np.zeros(np.shape(rows_f)) )), shape=((self.nnodes*3, 1)))
+        fg_0s = sparse.csr_matrix((val_f0s, (rows_f, np.zeros(np.shape(rows_f)) )), shape=((self.nnodes*D, 1)))
         val_f1s = np.array(val_f1s, dtype='float').flatten()
-        fg_1s = sparse.csr_matrix((val_f1s, (rows_f, np.zeros(np.shape(rows_f)) )), shape=((self.nnodes*3, 1)))
+        fg_1s = sparse.csr_matrix((val_f1s, (rows_f, np.zeros(np.shape(rows_f)) )), shape=((self.nnodes*D, 1)))
         val_f0v = np.array(val_f0v, dtype='float').flatten()
-        fg_0v = sparse.csr_matrix((val_f0v, (rows_f, np.zeros(np.shape(rows_f)) )), shape=((self.nnodes*3, 1)))
+        fg_0v = sparse.csr_matrix((val_f0v, (rows_f, np.zeros(np.shape(rows_f)) )), shape=((self.nnodes*D, 1)))
         val_f1v = np.array(val_f1v, dtype='float').flatten()
-        fg_1v = sparse.csr_matrix((val_f1v, (rows_f, np.zeros(np.shape(rows_f)) )), shape=((self.nnodes*3, 1)))
+        fg_1v = sparse.csr_matrix((val_f1v, (rows_f, np.zeros(np.shape(rows_f)) )), shape=((self.nnodes*D, 1)))
 
         self.M_g = M_g
         self.K_g = K_g
@@ -131,9 +132,9 @@ class fem1DRotatingBeam():
         tht_lst = []
         for nd in self.bcs_nodes:
             if nd[1] == 0: # Restricao geometrica (Dirichlet)
-                s_lst.append(3*nd[0])
-                v_lst.append(3*nd[0]+1)
-                tht_lst.append(3*nd[0]+2)
+                s_lst.append(D*nd[0])
+                v_lst.append(D*nd[0]+1)
+                tht_lst.append(D*nd[0]+2)
             if nd[1] == 1: # Neumann
                 continue #nao sei ainda...
 
@@ -154,15 +155,9 @@ class fem1DRotatingBeam():
         S_g = np.delete(S_g, s_lst + v_lst + tht_lst, 1)
 
         d = np.zeros((resized, self.num_steps)) # deformacoes
-        v = np.zeros((resized, 2))              # d/dt deformacoes
-        a = np.zeros((resized, 2))              # d2/dt2 deformacoes
 
         SminusM = S_g - M_g
         dt = self.delta_t  # Delta t
-        af = self.alp_f
-        am = self.alp_m
-        bet = self.beta
-        gam = self.gamma
         Ps = self.ps
         Pv = self.pv
         Omg = self.Omega
@@ -172,14 +167,14 @@ class fem1DRotatingBeam():
 
         # Metodo Implicito
         for k, _ in enumerate(self.time[:-1]):
-            omgSq_k = Omg[k+1]*Omg[k+1]
+            omg2_k = Omg[k+1]*Omg[k+1]
             if k == 0:
                 continue
             else:
-                f = (Ps[k+1] + rhoA*omgSq_k*of)*fg_0s + (rhoA*omgSq_k)*fg_1s
+                f = (Ps[k+1] + rhoA*omg2_k*of)*fg_0s + (rhoA*omg2_k)*fg_1s
                 f = f + (Pv[k+1] - rhoA*dotOmg[k+1]*of)*fg_0v - (rhoA*dotOmg[k+1])*fg_1v
                 C = 2*Omg[k+1]*G_g
-                K = K_g + omgSq_k*SminusM + dotOmg[k+1]*G_g
+                K = K_g + omg2_k*SminusM + dotOmg[k+1]*G_g
                 H = (M_g/(dt*dt) + C/dt + K)
                 J = f + np.matmul(M_g/(dt*dt) + C/dt ,d[:,k]).reshape((resized, 1)) - np.matmul(M_g/(dt*dt), d[:,k-1]).reshape((resized, 1))
                 d[:,k+1] = np.linalg.solve(H, J).reshape((resized, ))
@@ -192,10 +187,14 @@ class fem1DRotatingBeam():
 
 
     def plot(self):
+        D = Dimensionality
+        sdex = self.d[0::D,:]
+        vdex = self.d[1::D,:]
+        tdex = self.d[2::D,:]
         scale = self.scale_factor_s
         # Plot s(x)
         fig, ax = plt.subplots()
-        line, = ax.plot(self.nodes[1:,0], scale*self.d[0::3,0])
+        line, = ax.plot(self.nodes[1:,0], scale*sdex[:,0])
         plt.xlabel('x')
         plt.ylabel('s')
         plt.title('s(x) x25K')
@@ -203,7 +202,7 @@ class fem1DRotatingBeam():
 
         def s_timeseries(k): # update data
             i = k%(len(self.time))
-            line.set_ydata(scale*self.d[0::3,i])
+            line.set_ydata(scale*sdex[:,i])
             return line, # precisa da virgula!!!
 
         ani = anime.FuncAnimation(fig, s_timeseries, interval=20, blit=True, save_count=50)
@@ -212,7 +211,7 @@ class fem1DRotatingBeam():
         # Plot v(x)
         scale = self.scale_factor_v
         fig, ax = plt.subplots()
-        line, = ax.plot(self.nodes[1:,0], scale*self.d[1::3,0])
+        line, = ax.plot(self.nodes[1:,0], scale*vdex[:,0])
         plt.xlabel('x')
         plt.ylabel('v')
         plt.title('$v(x)$ x100')
@@ -220,7 +219,7 @@ class fem1DRotatingBeam():
 
         def v_timeseries(k): # update data
             i = k%(len(self.time))
-            line.set_ydata(scale*self.d[1::3,i])
+            line.set_ydata(scale*vdex[:,i])
             return line, # precisa da virgula!!!
 
         ani = anime.FuncAnimation(fig, v_timeseries, interval=20, blit=True, save_count=50)
@@ -228,7 +227,7 @@ class fem1DRotatingBeam():
 
         # Plot theta(x)
         fig, ax = plt.subplots()
-        line, = ax.plot(self.nodes[1:,0], self.d[2::3,0])
+        line, = ax.plot(self.nodes[1:,0], tdex[:,0])
         plt.xlabel('x')
         plt.ylabel('$\Theta$ [deg]')
         plt.title('$\Theta(x)$')
@@ -236,20 +235,19 @@ class fem1DRotatingBeam():
 
         def tht_timeseries(k): # update data
             i = k%(len(self.time))
-            line.set_ydata(self.d[2::3,i]*180/np.pi)
+            line.set_ydata(tdex[:,i]*180/np.pi)
             return line, # precisa da virgula!!!
 
         ani = anime.FuncAnimation(fig, tht_timeseries, interval=20, blit=True, save_count=50)
         plt.show(block=True)
 
-        # Plot Com a Barra "rodando"...
+        # Plot Com a Barra rodando!
         xe = np.zeros((self.nnodes,1))
         ye = np.zeros((self.nnodes,1))
-        se = self.scale_factor_s*self.d[0::3,:]
-        ve = self.scale_factor_v*self.d[1::3,:]
-        thte = self.d[2::3,:]
-        xe[1:] = (self.nodes[1:,0] + se[:,0]*np.cos(thte[:,0])).reshape((self.nnodes-1,1))
-        ye[1:] = (ve[:,0] + se[:,0]*np.sin(thte[:,0])).reshape((self.nnodes-1,1))
+        se = self.scale_factor_s*sdex
+        ve = self.scale_factor_v*vdex
+        xe[1:] = (self.nodes[1:,0] + se[:,0]*np.cos(tdex[:,0])).reshape((self.nnodes-1,1))
+        ye[1:] = (ve[:,0] + se[:,0]*np.sin(tdex[:,0])).reshape((self.nnodes-1,1))
         self.angle_last = 0
         Lmt = 1.1*self.properties['L']
 
@@ -266,8 +264,8 @@ class fem1DRotatingBeam():
 
         def xy_timeseries(k):
             i = k%(len(self.time))
-            xe[1:] = (self.nodes[1:,0] + se[:,i]*np.cos(thte[:,i])).reshape((self.nnodes-1,1))
-            ye[1:] = (ve[:,i] + se[:,i]*np.sin(thte[:,i])).reshape((self.nnodes-1,1))
+            xe[1:] = (self.nodes[1:,0] + se[:,i]*np.cos(tdex[:,i])).reshape((self.nnodes-1,1))
+            ye[1:] = (ve[:,i] + se[:,i]*np.sin(tdex[:,i])).reshape((self.nnodes-1,1))
 
             # Rotation about the Origin
             angle = self.angle_last + self.Omega[i]*self.delta_t
@@ -288,11 +286,9 @@ class fem1DRotatingBeam():
 
 
 
-
-
-
 class RB2():
-    def __init__(self, nodes, props):
+    def __init__(self, nodes, pos, props):
+        self.positions = pos
         self.enodes = nodes
         self.L   = props['L']
         self.Iz  = props['MoIz']
@@ -301,11 +297,12 @@ class RB2():
         self.E   = props['Young']
         self.A   = props['Area']
         self.rhoA   = props['Area']*props['Density']
+        self.h  = abs(self.positions[1] - self.positions[0])
+        self.x1 = self.positions.min()
 
-    def me(self, coords): # constroi a matrix M do elemento
-        x = coords[self.enodes, 0]
-        h = abs(x[1] - x[0]) # element size
-        M = np.zeros((6,6))
+    def me(self): # constroi a matrix M do elemento
+        h = self.h # element size
+        M = np.zeros((2*Dimensionality,2*Dimensionality))
         # Ref. 1, eq.(34), using Matlab symbolic math...(check script)
 
         M[0,0] = h/3
@@ -329,8 +326,8 @@ class RB2():
 
         M = self.rhoA*M
 
-        n1 = 3*self.enodes[0]
-        n2 = 3*self.enodes[1]
+        n1 = Dimensionality*self.enodes[0]
+        n2 = Dimensionality*self.enodes[1]
 
         #  s1  v1 tht1    s2  v2 tht2     
         # n11 n12  n13   n14 n15  n16  s1
@@ -356,15 +353,12 @@ class RB2():
 
         M = M + M.T - np.diag(M.diagonal())
         self.m_mtx = M
-        self.h = h
-
         return row_id, col_id, values
 
-    def ke(self, coords): # constroi a matrix K do elemento
-        x = coords[self.enodes, 0]
-        h = abs(x[1] - x[0]) # element size
-        Ks = np.zeros((6,6))
-        Kv = np.zeros((6,6))
+    def ke(self): # constroi a matrix K do elemento
+        h = self.h # element size
+        Ks = np.zeros((2*Dimensionality,2*Dimensionality))
+        Kv = np.zeros((2*Dimensionality,2*Dimensionality))
         # Ref. 1, eq.(34)
 
         Ks[0,0] =  1/h
@@ -395,10 +389,9 @@ class RB2():
         self.k_mtx = K
         return values
     
-    def ge(self, coords): # constroi a matrix G do elemento
-        x = coords[self.enodes, 0]
-        h = abs(x[1] - x[0]) # element size
-        G = np.zeros((6,6))
+    def ge(self): # constroi a matrix G do elemento
+        h = self.h # element size
+        G = np.zeros((2*Dimensionality,2*Dimensionality))
         # Ref. 1, eq.(34)
 
         G[0,1] = -7*h/20
@@ -422,13 +415,12 @@ class RB2():
         self.g_mtx = G
         return values
     
-    def se(self, coords): # constroi a matrix S do elemento
-        x = coords[self.enodes, 0]
-        h = abs(x[1] - x[0]) # element size
-        a =  x.min()
-        S0 = np.zeros((6,6))
-        S1 = np.zeros((6,6))
-        S2 = np.zeros((6,6))
+    def se(self): # constroi a matrix S do elemento
+        h = self.h # element size
+        a =  self.x1
+        S0 = np.zeros((2*Dimensionality,2*Dimensionality))
+        S1 = np.zeros((2*Dimensionality,2*Dimensionality))
+        S2 = np.zeros((2*Dimensionality,2*Dimensionality))
         # Ref. 1, eq.(34)
         # Zero Order Mtx
         S0[1,1] = 6/(5*h)
@@ -477,32 +469,28 @@ class RB2():
         self.s_mtx = S
         return values
 
-    def fe0s(self, coords): # 0-ord Ns fe vector
-        x = coords[self.enodes, 0]
-        h = abs(x[1] - x[0]) # element size
+    def fe0s(self): # 0-ord Ns fe vector
+        h = self.h
         v = [h/2, 0, 0, h/2, 0, 0]
-        n1 = 3*self.enodes[0]
-        n2 = 3*self.enodes[1]
+        n1 = self.enodes[0]*Dimensionality
+        n2 = self.enodes[1]*Dimensionality
         rows = [n1] + [n1+1] + [n1+2] + [n2] + [n2+1] + [n2 + 2] 
         return rows, v
 
-    def fe1s(self, coords): # 1-ord Ns fe vector
-        x = coords[self.enodes, 0]
-        h = abs(x[1] - x[0]) # element size
-        a =  x.min()
+    def fe1s(self): # 1-ord Ns fe vector
+        h = self.h
+        a = self.x1
         v = [(h*(3*a + h))/6, 0, 0, (h*(3*a + 2*h))/6, 0, 0]
         return v
 
-    def fe0v(self, coords): # 0-ord Nv fe vector
-        x = coords[self.enodes, 0]
-        h = abs(x[1] - x[0]) # element size
+    def fe0v(self): # 0-ord Nv fe vector
+        h = self.h
         v = [0, h/2, h*h/12, 0, h/2, -h*h/12]
         return v
 
-    def fe1v(self, coords): # 1-ord Nv fe vector
-        x = coords[self.enodes, 0]
-        h = abs(x[1] - x[0]) # element size
-        a =  x.min()
+    def fe1v(self): # 1-ord Nv fe vector
+        h = self.h
+        a =  self.x1
         v = [0, (h*(10*a + 3*h))/20, (h*h*(5*a + 2*h))/60, 
              0, (h*(10*a + 7*h))/20, -(h*h*(5*a + 3*h))/60]
         return v
@@ -535,8 +523,7 @@ connectivities[:,1] = np.arange(1, nnodes)
 problem = fem1DRotatingBeam(t_end, time_steps, spec_rds)
 problem.createNodes(coords) # array com coords dos nos
 props = {'Area':crossArea, 'Young':E, 'MoIz':Izz, 'MoIy':Iyy, 'Density':density, 'L':beamLength, 'a':offset}
-problem.createElements(connectivities, props) # array dos elementos, 
-# em que cada elemento contem os ids dos seus nos, mas o objeto element nao contem a info das coords
+problem.createElements(connectivities, props) # array dos elementos
 
 # Boundary conditions (Dynamic Conditions)
 T = t_end
@@ -551,7 +538,7 @@ Fz = 0*t
 
 t_offset = int(0.1*time_steps)
 #Fy[-t_offset:] = 0.3*np.sin(w*t[:t_offset])
-Fx[-t_offset:] = 0.1*np.sin(w*t[:t_offset])
+Fx[-t_offset:] = 0.3*np.sin(w*t[:t_offset])
 problem.createBoundaryConds(Omg, dotOmg, Fx, Fy, Fz)
 
 problem.solveChordwise()
