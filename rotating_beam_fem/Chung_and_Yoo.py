@@ -15,6 +15,7 @@ from scipy import sparse
 
 ## Global Variables
 Dimensionality = 3 # never change!!!
+gravity = 9.80665 # [m/s2]
 
 ## Class Definition
 
@@ -33,8 +34,8 @@ class fem1DRotatingBeam():
         self.num_steps = time_steps
         self.delta_t = end_time/time_steps
         self.time = np.linspace(0.0, self.end_time, self.num_steps)
-        self.scale_factor_v = 1e2
-        self.scale_factor_s = 1e5
+        self.scale_factor_v = 10
+        self.scale_factor_s = 2e4
 
     def createNodes(self, coords):
         self.nodes = coords
@@ -158,27 +159,36 @@ class fem1DRotatingBeam():
 
         SminusM = S_g - M_g
         dt = self.delta_t  # Delta t
-        Ps = self.ps
-        Pv = self.pv
+        sigma_s = self.ps
+        sigma_v = self.pv
         Omg = self.Omega
         dotOmg = self.dOmega
         rhoA  = self.properties['Area']*self.properties['Density']
+        rhoAg = rhoA*gravity
         of = self.properties['a']
-
+        L = self.properties['L']
+        self.angle_last = 0
         # Metodo Implicito
         for k, _ in enumerate(self.time[:-1]):
             omg2_k = Omg[k+1]*Omg[k+1]
+            link_ang = self.angle_last + Omg[k+1]*dt # integrate Omega
+            s_ang = np.sin(link_ang)
+            c_ang = np.cos(link_ang)
+            w_0s  = -rhoAg*L*s_ang
+            w_0v  = -rhoAg*L*c_ang
+            w_1s  =  rhoAg*s_ang
+            w_1v  =  rhoAg*c_ang
             if k == 0:
                 continue
             else:
-                f = (Ps[k+1] + rhoA*omg2_k*of)*fg_0s + (rhoA*omg2_k)*fg_1s
-                f = f + (Pv[k+1] - rhoA*dotOmg[k+1]*of)*fg_0v - (rhoA*dotOmg[k+1])*fg_1v
+                f = (w_0s + sigma_s[k+1] + rhoA*omg2_k*of)*fg_0s + (w_1s + rhoA*omg2_k)*fg_1s
+                f = f + (w_0v + sigma_v[k+1] - rhoA*dotOmg[k+1]*of)*fg_0v - (w_1v + rhoA*dotOmg[k+1])*fg_1v
                 C = 2*Omg[k+1]*G_g
                 K = K_g + omg2_k*SminusM + dotOmg[k+1]*G_g
                 H = (M_g/(dt*dt) + C/dt + K)
                 J = f + np.matmul(M_g/(dt*dt) + C/dt ,d[:,k]).reshape((resized, 1)) - np.matmul(M_g/(dt*dt), d[:,k-1]).reshape((resized, 1))
                 d[:,k+1] = np.linalg.solve(H, J).reshape((resized, ))
-
+            self.angle_last = link_ang
         self.d = d
 
 
@@ -197,7 +207,7 @@ class fem1DRotatingBeam():
         line, = ax.plot(self.nodes[1:,0], scale*sdex[:,0])
         plt.xlabel('x')
         plt.ylabel('s')
-        plt.title('s(x) x25K')
+        plt.title('s(x) x20K')
         plt.grid()
 
         def s_timeseries(k): # update data
@@ -214,7 +224,7 @@ class fem1DRotatingBeam():
         line, = ax.plot(self.nodes[1:,0], scale*vdex[:,0])
         plt.xlabel('x')
         plt.ylabel('v')
-        plt.title('$v(x)$ x100')
+        plt.title('$v(x)$ x10')
         plt.grid()
 
         def v_timeseries(k): # update data
@@ -231,6 +241,7 @@ class fem1DRotatingBeam():
         plt.xlabel('x')
         plt.ylabel('$\Theta$ [deg]')
         plt.title('$\Theta(x)$')
+        plt.ylim(-4,4)
         plt.grid()
 
         def tht_timeseries(k): # update data
@@ -254,10 +265,9 @@ class fem1DRotatingBeam():
         fig, ax = plt.subplots()
         line, = ax.plot(xe, ye)
         ax.plot(xe, ye, '--r')
-        plt.title('Barra Def. vs Não Def. sob $\Omega(t)$, v(x) x100 e s(x) x100K')
+        plt.title('Barra Def. vs Não Def. sob $\Omega(t)$, v(x) x10 e s(x) x20K')
         plt.xlabel('x')
         plt.ylabel('y')
-        #plt.axis('equal')
         plt.xlim(-Lmt,Lmt)
         plt.ylim(-Lmt,Lmt)
         plt.grid()
@@ -538,7 +548,7 @@ Fz = 0*t
 
 t_offset = int(0.1*time_steps)
 #Fy[-t_offset:] = 0.3*np.sin(w*t[:t_offset])
-Fx[-t_offset:] = 0.3*np.sin(w*t[:t_offset])
+#Fx[-t_offset:] = 0.3*np.sin(w*t[:t_offset])
 problem.createBoundaryConds(Omg, dotOmg, Fx, Fy, Fz)
 
 problem.solveChordwise()
