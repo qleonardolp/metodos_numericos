@@ -34,8 +34,9 @@ class fem1DRotatingBeam():
         self.num_steps = time_steps
         self.delta_t = end_time/time_steps
         self.time = np.linspace(0.0, self.end_time, self.num_steps)
-        self.scale_factor_v = 10
-        self.scale_factor_s = 2e4
+        self.scale_factor_v = 1e3
+        self.scale_factor_s = 2e6
+        self.scale_factor_t = 50
 
     def createNodes(self, coords):
         self.nodes = coords
@@ -207,7 +208,7 @@ class fem1DRotatingBeam():
         line, = ax.plot(self.nodes[1:,0], scale*sdex[:,0])
         plt.xlabel('x')
         plt.ylabel('s')
-        plt.title('s(x) x20K')
+        plt.title('s(x) x2M')
         plt.grid()
 
         def s_timeseries(k): # update data
@@ -224,7 +225,7 @@ class fem1DRotatingBeam():
         line, = ax.plot(self.nodes[1:,0], scale*vdex[:,0])
         plt.xlabel('x')
         plt.ylabel('v')
-        plt.title('$v(x)$ x10')
+        plt.title('$v(x)$ x1K')
         plt.grid()
 
         def v_timeseries(k): # update data
@@ -237,16 +238,16 @@ class fem1DRotatingBeam():
 
         # Plot theta(x)
         fig, ax = plt.subplots()
-        line, = ax.plot(self.nodes[1:,0], tdex[:,0])
+        line, = ax.plot(self.nodes[1:,0], tdex[:,0]*self.scale_factor_t)
         plt.xlabel('x')
-        plt.ylabel('$\Theta$ [deg]')
+        plt.ylabel('$\Theta$ [deg] x50')
         plt.title('$\Theta(x)$')
         plt.ylim(-4,4)
         plt.grid()
 
         def tht_timeseries(k): # update data
             i = k%(len(self.time))
-            line.set_ydata(tdex[:,i]*180/np.pi)
+            line.set_ydata(tdex[:,i]*180/np.pi*self.scale_factor_t)
             return line, # precisa da virgula!!!
 
         ani = anime.FuncAnimation(fig, tht_timeseries, interval=20, blit=True, save_count=50)
@@ -265,7 +266,7 @@ class fem1DRotatingBeam():
         fig, ax = plt.subplots()
         line, = ax.plot(xe, ye)
         ax.plot(xe, ye, '--r')
-        plt.title('Barra Def. vs Não Def. sob $\Omega(t)$, v(x) x10 e s(x) x20K')
+        plt.title('Barra Def. vs Não Def. sob $\Omega(t)$, v(x) x1K e s(x) x2M')
         plt.xlabel('x')
         plt.ylabel('y')
         plt.xlim(-Lmt,Lmt)
@@ -517,9 +518,10 @@ Radius = 2*beamLength/70 # Euler-Bernoulli beam theory constrain with alpha = 70
 crossArea = np.pi*Radius*Radius
 Izz = 0.25* np.pi*pow(Radius, 4)
 Iyy = 0.25* np.pi*pow(Radius, 4)
-# ABS Properties:
-E = 27e6        # [Pa] (27 MPa)
-density = 1.2e3 # [Kg/m^3]
+# Nylon Properties:
+E = 2.9e9        # [Pa] (2.9 GPa)
+density = 1.14e3 # [Kg/m^3]
+# Ultimate tensile strength: 40 MPa
 
 spec_rds = 0.8 #Spectral Radius (rho_inf) [Ref 2]
 # util para o caso 2D:
