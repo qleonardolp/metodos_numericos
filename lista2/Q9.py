@@ -14,7 +14,7 @@ from scipy import sparse
 from scipy.sparse.linalg import spsolve
 from numpy.polynomial.legendre import leggauss
 
-plt.style.use('dark_background') # comentar essa linha para ter as figuras com fundo branco
+#plt.style.use('dark_background') # comentar essa linha para ter as figuras com fundo branco
 
 nod_coords = {1:(-1,-1), 2:(1,-1), 3:(1,1), 4:(-1,1)}   # Xi-Eta table 4Q (var global)
 
@@ -68,7 +68,7 @@ class fem2DHeaTransfer():
         for element in self.elements:
             element.props = props
 
-    def createBoundaryConds(self, conditions, des_nodes, des_values):
+    def createBoundaryConds(self, conditions):
         self.bcs_nodes = [] # id/ tipo/ valor
         eps = 0.000001
         for i,nd in enumerate(self.nodes):
@@ -143,14 +143,16 @@ class fem2DHeaTransfer():
 
     def plot(self):
         if self.method == 'tri':
+            """
             plt.figure()
             plt.triplot(self.nodes[:,0], self.nodes[:,1], self.connectivities, '-w', linewidth=0.5)
             plt.axis('off')
             plt.axis('equal')
+            """
 
             plt.figure()
             plt.tripcolor(self.nodes[:,0], self.nodes[:,1], self.connectivities, self.T, shading='gouraud')
-            plt.triplot(self.nodes[:,0], self.nodes[:,1], self.connectivities, '-w', linewidth=0.5)
+            plt.triplot(self.nodes[:,0], self.nodes[:,1], self.connectivities, '-k', linewidth=0.5)
             plt.colorbar()
             plt.axis('off')
             plt.axis('equal')
@@ -306,7 +308,7 @@ T2 = 10.0
 q  = 0.00
 # tipo 0: Dirichlet | 1: Neumann (E: Esq, D: Dir, Sup: Superior, Inf: Inferior)
 bcs = {'E':(0,T1), 'D':(0,T2), 'S':(1,q), 'I':(1,q)}
-problem.createBoundaryConds(bcs, [0, 2, 4], [10, 5, 7.5])
+problem.createBoundaryConds(bcs)
 
 problem.solve()
 
